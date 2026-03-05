@@ -121,6 +121,10 @@ function copyResponseHeaders(upstreamHeaders, corsHeaders, pathname) {
   return headers;
 }
 
+function isSearchPath(pathname) {
+  return pathname.startsWith("/api/common/elastic/search");
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -161,6 +165,9 @@ export default {
     });
 
     upstreamHeaders.set("Referer", env.ONEMAP_REFERER);
+    if (isSearchPath(url.pathname) && env.ONEMAP_API_TOKEN) {
+      upstreamHeaders.set("Authorization", env.ONEMAP_API_TOKEN);
+    }
 
     const isImageryPath = url.pathname.startsWith("/maps/tiles/");
     let upstreamResponse;

@@ -26,23 +26,30 @@ OneMap 3D tileset access is referer-gated. Browser code cannot set arbitrary `Re
 npm install
 ```
 
-2. Run Worker locally:
+2. Configure local Worker secrets:
+
+```bash
+cp worker/.dev.vars.example worker/.dev.vars
+# edit worker/.dev.vars and set ONEMAP_API_TOKEN
+```
+
+3. Run Worker locally:
 
 ```bash
 npm run worker:dev
 ```
 
-3. Run frontend locally (separate terminal):
+4. Run frontend locally (separate terminal):
 
 ```bash
 npm run viewer:dev
 ```
 
-4. Open viewer:
+5. Open viewer:
 
 `http://localhost:5173`
 
-5. Deploy Worker:
+6. Deploy Worker:
 
 ```bash
 npm run worker:deploy
@@ -55,6 +62,47 @@ Configured in `worker/wrangler.toml`:
 - `ONEMAP_BASE_URL` (default `https://www.onemap.gov.sg`)
 - `ONEMAP_REFERER` (default `https://www.onemap.gov.sg/3d`)
 - `ALLOWED_ORIGINS` (comma-separated or `*`)
+- `ONEMAP_API_TOKEN` (secret; set with Wrangler)
+
+Set production secret:
+
+```bash
+wrangler secret put ONEMAP_API_TOKEN --config worker/wrangler.toml
+```
+
+Set production allowlist origin (example):
+
+```bash
+wrangler deploy --config worker/wrangler.toml --var ALLOWED_ORIGINS=https://check-your-view.pages.dev
+```
+
+## Frontend Runtime Config
+
+Frontend proxy base is controlled by `frontend/config.js`:
+
+```js
+window.CHECK_YOUR_VIEW_CONFIG = {
+  proxyBase: "https://your-worker-subdomain.workers.dev",
+};
+```
+
+For local dev it defaults to `http://localhost:8787`.
+
+## Manual Deploy Script
+
+Deploy both Worker and Pages in one command:
+
+```bash
+npm run deploy
+```
+
+Requirements:
+
+- `CLOUDFLARE_API_TOKEN` in shell env
+- optional `CLOUDFLARE_ACCOUNT_ID` (defaults to this account)
+- `ONEMAP_API_TOKEN` in shell env, or `token.txt` in repo root
+
+Script path: `scripts/deploy.sh`
 
 ## Planned View URL Schema (Frontend)
 

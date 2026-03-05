@@ -6,7 +6,8 @@
   "scripts": {
     "viewer:dev": "serve frontend --listen 5173",
     "worker:dev": "wrangler dev --config worker/wrangler.toml",
-    "worker:deploy": "wrangler deploy --config worker/wrangler.toml"
+    "worker:deploy": "wrangler deploy --config worker/wrangler.toml",
+    "deploy": "bash scripts/deploy.sh"
   },
   "keywords": [],
   "author": "",

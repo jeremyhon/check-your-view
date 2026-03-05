@@ -1,7 +1,10 @@
 /* global Cesium, L */
 
+const runtimeConfig = window.CHECK_YOUR_VIEW_CONFIG || {};
+const defaultProxyBase = runtimeConfig.proxyBase || "http://localhost:8787";
+
 const DEFAULTS = {
-  proxy_base: "http://localhost:8787",
+  proxy_base: defaultProxyBase,
   lat: 1.3197,
   lng: 103.8422,
   height_m: 150,
