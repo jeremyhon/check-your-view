@@ -96,11 +96,17 @@ Deploy both Worker and Pages in one command:
 npm run deploy
 ```
 
+Sync ONEMAP secret explicitly (only when needed):
+
+```bash
+npm run deploy:sync-secrets
+```
+
 Requirements:
 
 - `CLOUDFLARE_API_TOKEN` in shell env
 - optional `CLOUDFLARE_ACCOUNT_ID` (defaults to this account)
-- `ONEMAP_API_TOKEN` in shell env, or `token.txt` in repo root
+- `ONEMAP_API_TOKEN` in shell env, or `token.txt` in repo root (only for `--sync-secrets`)
 
 Script path: `scripts/deploy.sh`
 
@@ -126,4 +132,5 @@ This schema represents exact camera position and orientation with height in mete
 - Mini map above coordinate fields for click/drag location selection.
 - Mouse drag changes orientation (`heading_deg`, `pitch_deg`) only.
 - Share link encodes exact camera pose and proxy URL.
+- Debug rendering controls are hidden by default and shown with `?debug=1`.
 - 3D tiles use aggressive LOD skipping/culling to avoid loading far-distance content unnecessarily.
