@@ -9,6 +9,7 @@ const isMobileClient =
   /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
 const defaultMaxSse = isMobileClient ? 64 : 4;
 const CAMERA_FAR_METERS = 2_000_000;
+const PANEL_COLLAPSE_STORAGE_KEY = "check-your-view:panel-collapsed";
 
 const DEFAULTS = {
   proxy_base: defaultProxyBase,
@@ -73,11 +74,13 @@ let searchDebounceId = null;
 let searchAbortController = null;
 let lastX = 0;
 let lastY = 0;
+let panelCollapsed = false;
 
 const $ = (id) => document.getElementById(id);
 
 const ui = {
   miniMap: $("miniMap"),
+  miniMapInstruction: $("miniMapInstruction"),
   lat: $("lat"),
   lng: $("lng"),
   searchInput: $("searchInput"),
@@ -98,6 +101,7 @@ const ui = {
   debugLoadSiblings: $("debugLoadSiblings"),
   debugMaxSse: $("debugMaxSse"),
   debugCullMultiplier: $("debugCullMultiplier"),
+  panelToggleBtn: $("panelToggleBtn"),
   applyBtn: $("applyBtn"),
   copyBtn: $("copyBtn"),
   status: $("status"),
@@ -320,6 +324,53 @@ function syncUrlToState() {
 function setStatus(message, isError = false) {
   ui.status.textContent = message;
   ui.status.style.color = isError ? "#b42318" : "#1f2937";
+}
+
+function setMiniMapInstructionText() {
+  if (!ui.miniMapInstruction) {
+    return;
+  }
+  ui.miniMapInstruction.textContent = `${
+    isMobileClient ? "Tap" : "Click"
+  } on the map to move.`;
+}
+
+function applyPanelCollapsedState(collapsed, persist = true) {
+  panelCollapsed = Boolean(collapsed);
+  document.body.classList.toggle("panel-collapsed", panelCollapsed);
+  if (ui.panelToggleBtn) {
+    ui.panelToggleBtn.textContent = panelCollapsed ? "Show Panel" : "Hide Panel";
+    ui.panelToggleBtn.setAttribute(
+      "aria-label",
+      panelCollapsed ? "Show controls panel" : "Hide controls panel",
+    );
+    ui.panelToggleBtn.setAttribute("aria-expanded", String(!panelCollapsed));
+  }
+  if (persist) {
+    try {
+      window.localStorage.setItem(PANEL_COLLAPSE_STORAGE_KEY, panelCollapsed ? "1" : "0");
+    } catch {
+      // ignore storage errors
+    }
+  }
+  window.setTimeout(() => {
+    if (viewer) {
+      viewer.scene.requestRender();
+    }
+    if (miniMap && !panelCollapsed) {
+      miniMap.invalidateSize();
+    }
+  }, 240);
+}
+
+function initializePanelCollapsedState() {
+  let savedValue = "0";
+  try {
+    savedValue = window.localStorage.getItem(PANEL_COLLAPSE_STORAGE_KEY) || "0";
+  } catch {
+    // ignore storage errors
+  }
+  applyPanelCollapsedState(savedValue === "1", false);
 }
 
 function setFixedCameraPose() {
@@ -680,6 +731,9 @@ async function copyShareLink() {
 }
 
 function bindUi() {
+  ui.panelToggleBtn.addEventListener("click", () => {
+    applyPanelCollapsedState(!panelCollapsed);
+  });
   ui.applyBtn.addEventListener("click", () => {
     void applyPoseFromForm();
   });
@@ -747,6 +801,8 @@ function bindUi() {
 
 async function bootstrap() {
   applyStateFromQuery();
+  setMiniMapInstructionText();
+  initializePanelCollapsedState();
   syncInputsFromState();
   bindUi();
   try {

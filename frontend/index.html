@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
+    <button id="panelToggleBtn" type="button" aria-expanded="true">Hide Panel</button>
     <div id="app">
       <aside id="panel">
         <h1>Check Your View</h1>
@@ -24,6 +25,7 @@
         <input id="searchInput" type="text" placeholder="Search address or building" />
         <div id="searchResults" class="search-results"></div>
 
+        <p id="miniMapInstruction" class="mini-map-instruction"></p>
         <label for="miniMap">Location Mini Map</label>
         <div id="miniMap" aria-label="Location mini map"></div>
 
@@ -81,6 +83,16 @@
           </div>
         </div>
 
+        <div class="actions">
+          <button id="applyBtn" type="button">Apply</button>
+          <button id="copyBtn" type="button">Copy Share Link</button>
+        </div>
+
+        <p id="status" class="status"></p>
+        <p class="hint">
+          Drag in the viewer to rotate orientation. Position is locked.
+        </p>
+
         <details id="debugPanel" class="debug-panel">
           <summary>Debug Rendering</summary>
           <div class="debug-grid">
@@ -124,16 +136,6 @@
             </div>
           </div>
         </details>
-
-        <div class="actions">
-          <button id="applyBtn" type="button">Apply Pose</button>
-          <button id="copyBtn" type="button">Copy Share Link</button>
-        </div>
-
-        <p id="status" class="status"></p>
-        <p class="hint">
-          Drag in the viewer to rotate orientation. Position is locked.
-        </p>
       </aside>
       <main id="viewerContainer"></main>
     </div>
@@ -142,5 +144,12 @@
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="./config.js"></script>
     <script type="module" src="./app.js"></script>
+    <a
+      id="repoLink"
+      href="https://github.com/jeremyhon/check-your-view"
+      target="_blank"
+      rel="noopener noreferrer"
+      >GitHub</a
+    >
   </body>
 </html>
