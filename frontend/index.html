@@ -81,6 +81,50 @@
           </div>
         </div>
 
+        <details id="debugPanel" class="debug-panel">
+          <summary>Debug Rendering</summary>
+          <div class="debug-grid">
+            <label class="debug-toggle" for="debugFogEnabled">
+              <input id="debugFogEnabled" type="checkbox" />
+              <span>Fog Enabled</span>
+            </label>
+            <label class="debug-toggle" for="debugDynamicSse">
+              <input id="debugDynamicSse" type="checkbox" />
+              <span>Dynamic SSE</span>
+            </label>
+            <label class="debug-toggle" for="debugSkipLod">
+              <input id="debugSkipLod" type="checkbox" />
+              <span>Skip LOD</span>
+            </label>
+            <label class="debug-toggle" for="debugFoveatedSse">
+              <input id="debugFoveatedSse" type="checkbox" />
+              <span>Foveated SSE</span>
+            </label>
+            <label class="debug-toggle" for="debugCullWithChildren">
+              <input id="debugCullWithChildren" type="checkbox" />
+              <span>Cull With Children Bounds</span>
+            </label>
+            <label class="debug-toggle" for="debugCullWhileMoving">
+              <input id="debugCullWhileMoving" type="checkbox" />
+              <span>Cull While Moving</span>
+            </label>
+            <label class="debug-toggle" for="debugLoadSiblings">
+              <input id="debugLoadSiblings" type="checkbox" />
+              <span>Load Siblings</span>
+            </label>
+          </div>
+          <div class="row">
+            <div>
+              <label for="debugMaxSse">Max SSE</label>
+              <input id="debugMaxSse" type="number" min="1" max="512" step="1" />
+            </div>
+            <div>
+              <label for="debugCullMultiplier">Cull Moving Mult.</label>
+              <input id="debugCullMultiplier" type="number" min="1" max="64" step="1" />
+            </div>
+          </div>
+        </details>
+
         <div class="actions">
           <button id="applyBtn" type="button">Apply Pose</button>
           <button id="copyBtn" type="button">Copy Share Link</button>

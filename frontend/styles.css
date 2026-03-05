@@ -116,6 +116,42 @@ button {
   gap: 8px;
 }
 
+.debug-panel {
+  margin-top: 10px;
+  border: 1px solid #d8e1ea;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fbfdff;
+}
+
+.debug-panel summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: #334250;
+  font-weight: 600;
+}
+
+.debug-grid {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+
+.debug-toggle {
+  margin: 0;
+  font-size: 12px;
+  color: #334250;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.debug-toggle input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
 button {
   cursor: pointer;
   background: #fff;

@@ -2,19 +2,50 @@
 
 const runtimeConfig = window.CHECK_YOUR_VIEW_CONFIG || {};
 const defaultProxyBase = runtimeConfig.proxyBase || "http://localhost:8787";
+const isLocalHost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+const isMobileClient =
+  (typeof window.matchMedia === "function" &&
+    window.matchMedia("(max-width: 960px), (pointer: coarse)").matches) ||
+  /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+const defaultMaxSse = isMobileClient ? 64 : 4;
+const CAMERA_FAR_METERS = 2_000_000;
 
 const DEFAULTS = {
   proxy_base: defaultProxyBase,
-  lat: 1.284,
-  lng: 103.860709,
+  lat: 1.284048,
+  lng: 103.860691,
   height_m: 196,
   floor_level: 65.33,
   floor_height_m: 3,
-  heading_deg: -68.2,
-  pitch_deg: -6.4,
+  heading_deg: -85.6,
+  pitch_deg: -15.8,
   fov_deg: 60,
   base_map: "OrthoJPG",
 };
+
+const DEBUG_DEFAULTS = isLocalHost
+  ? {
+      fogEnabled: false,
+      dynamicScreenSpaceError: false,
+      maximumScreenSpaceError: defaultMaxSse,
+      skipLevelOfDetail: true,
+      cullWithChildrenBounds: true,
+      cullRequestsWhileMoving: false,
+      cullRequestsWhileMovingMultiplier: 12,
+      loadSiblings: true,
+      foveatedScreenSpaceError: true,
+    }
+  : {
+      fogEnabled: true,
+      dynamicScreenSpaceError: true,
+      maximumScreenSpaceError: defaultMaxSse,
+      skipLevelOfDetail: true,
+      cullWithChildrenBounds: true,
+      cullRequestsWhileMoving: true,
+      cullRequestsWhileMovingMultiplier: 12,
+      loadSiblings: false,
+      foveatedScreenSpaceError: true,
+    };
 
 const SINGAPORE_RECTANGLE = Cesium.Rectangle.fromDegrees(103.55, 1.15, 104.1, 1.5);
 const SINGAPORE_BOUNDS = [
@@ -29,6 +60,7 @@ const SG_LIMITS = {
 };
 
 const state = { ...DEFAULTS };
+const debugState = { ...DEBUG_DEFAULTS };
 let viewer;
 let tileset;
 let fixedPosition;
@@ -57,6 +89,15 @@ const ui = {
   headingDeg: $("headingDeg"),
   pitchDeg: $("pitchDeg"),
   baseMap: $("baseMap"),
+  debugFogEnabled: $("debugFogEnabled"),
+  debugDynamicSse: $("debugDynamicSse"),
+  debugSkipLod: $("debugSkipLod"),
+  debugFoveatedSse: $("debugFoveatedSse"),
+  debugCullWithChildren: $("debugCullWithChildren"),
+  debugCullWhileMoving: $("debugCullWhileMoving"),
+  debugLoadSiblings: $("debugLoadSiblings"),
+  debugMaxSse: $("debugMaxSse"),
+  debugCullMultiplier: $("debugCullMultiplier"),
   applyBtn: $("applyBtn"),
   copyBtn: $("copyBtn"),
   status: $("status"),
@@ -77,6 +118,89 @@ function clamp(value, min, max) {
 function normalizeDeg(value) {
   const wrapped = ((value % 360) + 360) % 360;
   return wrapped > 180 ? wrapped - 360 : wrapped;
+}
+
+function syncDebugInputsFromState() {
+  if (!ui.debugFogEnabled) {
+    return;
+  }
+  ui.debugFogEnabled.checked = debugState.fogEnabled;
+  ui.debugDynamicSse.checked = debugState.dynamicScreenSpaceError;
+  ui.debugSkipLod.checked = debugState.skipLevelOfDetail;
+  ui.debugFoveatedSse.checked = debugState.foveatedScreenSpaceError;
+  ui.debugCullWithChildren.checked = debugState.cullWithChildrenBounds;
+  ui.debugCullWhileMoving.checked = debugState.cullRequestsWhileMoving;
+  ui.debugLoadSiblings.checked = debugState.loadSiblings;
+  ui.debugMaxSse.value = String(debugState.maximumScreenSpaceError);
+  ui.debugCullMultiplier.value = String(debugState.cullRequestsWhileMovingMultiplier);
+}
+
+function readDebugStateFromInputs() {
+  if (!ui.debugFogEnabled) {
+    return;
+  }
+  debugState.fogEnabled = ui.debugFogEnabled.checked;
+  debugState.dynamicScreenSpaceError = ui.debugDynamicSse.checked;
+  debugState.skipLevelOfDetail = ui.debugSkipLod.checked;
+  debugState.foveatedScreenSpaceError = ui.debugFoveatedSse.checked;
+  debugState.cullWithChildrenBounds = ui.debugCullWithChildren.checked;
+  debugState.cullRequestsWhileMoving = ui.debugCullWhileMoving.checked;
+  debugState.loadSiblings = ui.debugLoadSiblings.checked;
+  debugState.maximumScreenSpaceError = clamp(
+    parseNumber(ui.debugMaxSse.value, debugState.maximumScreenSpaceError),
+    1,
+    512,
+  );
+  debugState.cullRequestsWhileMovingMultiplier = clamp(
+    parseNumber(ui.debugCullMultiplier.value, debugState.cullRequestsWhileMovingMultiplier),
+    1,
+    64,
+  );
+  ui.debugMaxSse.value = String(debugState.maximumScreenSpaceError);
+  ui.debugCullMultiplier.value = String(debugState.cullRequestsWhileMovingMultiplier);
+}
+
+function applyDebugSettingsToTileset(targetTileset) {
+  if (!targetTileset) {
+    return;
+  }
+  targetTileset.dynamicScreenSpaceError = debugState.dynamicScreenSpaceError;
+  targetTileset.maximumScreenSpaceError = debugState.maximumScreenSpaceError;
+  targetTileset.skipLevelOfDetail = debugState.skipLevelOfDetail;
+  targetTileset.baseScreenSpaceError = 1024;
+  targetTileset.skipScreenSpaceErrorFactor = 16;
+  targetTileset.skipLevels = 1;
+  targetTileset.cullWithChildrenBounds = debugState.cullWithChildrenBounds;
+  targetTileset.cullRequestsWhileMoving = debugState.cullRequestsWhileMoving;
+  targetTileset.cullRequestsWhileMovingMultiplier = debugState.cullRequestsWhileMovingMultiplier;
+  targetTileset.foveatedScreenSpaceError = debugState.foveatedScreenSpaceError;
+  targetTileset.loadSiblings = debugState.loadSiblings;
+  targetTileset.preloadWhenHidden = false;
+  targetTileset.preloadFlightDestinations = false;
+}
+
+function applyDebugSettingsLive() {
+  if (!viewer) {
+    return;
+  }
+  viewer.scene.fog.enabled = debugState.fogEnabled;
+  applyDebugSettingsToTileset(tileset);
+  viewer.scene.requestRender();
+}
+
+function getDebugValueByControlId(controlId) {
+  const controlValueMap = {
+    debugFogEnabled: debugState.fogEnabled,
+    debugDynamicSse: debugState.dynamicScreenSpaceError,
+    debugSkipLod: debugState.skipLevelOfDetail,
+    debugFoveatedSse: debugState.foveatedScreenSpaceError,
+    debugCullWithChildren: debugState.cullWithChildrenBounds,
+    debugCullWhileMoving: debugState.cullRequestsWhileMoving,
+    debugLoadSiblings: debugState.loadSiblings,
+    debugMaxSse: debugState.maximumScreenSpaceError,
+    debugCullMultiplier: debugState.cullRequestsWhileMovingMultiplier,
+  };
+  return controlValueMap[controlId];
 }
 
 function sanitizeFloorHeight(value) {
@@ -156,6 +280,7 @@ function syncInputsFromState() {
   ui.headingDeg.value = state.heading_deg;
   ui.pitchDeg.value = state.pitch_deg;
   ui.baseMap.value = state.base_map;
+  syncDebugInputsFromState();
 }
 
 function readStateFromInputs() {
@@ -209,7 +334,7 @@ function setFixedCameraPose() {
   });
   viewer.camera.frustum.fov = Cesium.Math.toRadians(state.fov_deg);
   viewer.camera.frustum.near = 0.2;
-  viewer.camera.frustum.far = 30000;
+  viewer.camera.frustum.far = CAMERA_FAR_METERS;
 }
 
 function lockCameraControls() {
@@ -461,19 +586,7 @@ async function loadTileset() {
   }
   const url = `${state.proxy_base}/omapi/tilesets/sg_noterrain_tiles/tileset.json`;
   tileset = await Cesium.Cesium3DTileset.fromUrl(url);
-  // Favor near-view detail and aggressively skip/cull far tiles.
-  tileset.dynamicScreenSpaceError = true;
-  tileset.maximumScreenSpaceError = 32;
-  tileset.skipLevelOfDetail = true;
-  tileset.baseScreenSpaceError = 1024;
-  tileset.skipScreenSpaceErrorFactor = 16;
-  tileset.skipLevels = 1;
-  tileset.cullWithChildrenBounds = true;
-  tileset.cullRequestsWhileMoving = true;
-  tileset.cullRequestsWhileMovingMultiplier = 12;
-  tileset.loadSiblings = false;
-  tileset.preloadWhenHidden = false;
-  tileset.preloadFlightDestinations = false;
+  applyDebugSettingsToTileset(tileset);
   viewer.scene.primitives.add(tileset);
   window.__tileset = tileset;
 }
@@ -507,8 +620,14 @@ async function initializeViewer() {
   });
   window.__viewer = viewer;
   viewer.scene.camera.constrainedAxis = Cesium.Cartesian3.UNIT_Z;
-  viewer.scene.globe.showGroundAtmosphere = false;
-  viewer.scene.fog.enabled = true;
+  viewer.scene.globe.showGroundAtmosphere = true;
+  if (viewer.scene.skyAtmosphere) {
+    viewer.scene.skyAtmosphere.show = true;
+  }
+  if (viewer.scene.skyBox) {
+    viewer.scene.skyBox.show = true;
+  }
+  viewer.scene.fog.enabled = debugState.fogEnabled;
   viewer.scene.fog.density = 0.0002;
   viewer.scene.fog.screenSpaceErrorFactor = 2;
   viewer.scene.debugShowFramesPerSecond = false;
@@ -575,6 +694,28 @@ function bindUi() {
   });
   ui.heightM.addEventListener("input", () => {
     syncFloorFromHeightInput();
+  });
+  const debugControls = [
+    ui.debugFogEnabled,
+    ui.debugDynamicSse,
+    ui.debugSkipLod,
+    ui.debugFoveatedSse,
+    ui.debugCullWithChildren,
+    ui.debugCullWhileMoving,
+    ui.debugLoadSiblings,
+    ui.debugMaxSse,
+    ui.debugCullMultiplier,
+  ].filter(Boolean);
+  debugControls.forEach((control) => {
+    const eventName = control.type === "number" ? "input" : "change";
+    control.addEventListener(eventName, () => {
+      readDebugStateFromInputs();
+      applyDebugSettingsLive();
+      console.log(
+        `[debug] ${control.id} = ${getDebugValueByControlId(control.id)}`,
+        { ...debugState },
+      );
+    });
   });
   ui.searchInput.addEventListener("input", (event) => {
     const query = event.target.value.trim();
