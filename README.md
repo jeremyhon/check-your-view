@@ -108,6 +108,8 @@ Script path: `scripts/deploy.sh`
 
 - `lat`
 - `lng`
+- `floor_level`
+- `floor_height_m`
 - `height_m`
 - `heading_deg`
 - `pitch_deg`
@@ -119,6 +121,7 @@ This schema represents exact camera position and orientation with height in mete
 
 - Single camera mode only.
 - Camera position locked to `lat/lng/height_m`.
+- Height can be controlled directly or via `floor_level * floor_height_m`.
 - Search box above mini map (OneMap search endpoint) for quick location jumps.
 - Mini map above coordinate fields for click/drag location selection.
 - Mouse drag changes orientation (`heading_deg`, `pitch_deg`) only.

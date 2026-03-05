@@ -8,6 +8,8 @@ const DEFAULTS = {
   lat: 1.3197,
   lng: 103.8422,
   height_m: 150,
+  floor_level: 50,
+  floor_height_m: 3,
   heading_deg: 0,
   pitch_deg: -80,
   fov_deg: 60,
@@ -48,6 +50,8 @@ const ui = {
   lng: $("lng"),
   searchInput: $("searchInput"),
   searchResults: $("searchResults"),
+  floorLevel: $("floorLevel"),
+  floorHeightM: $("floorHeightM"),
   heightM: $("heightM"),
   fovDeg: $("fovDeg"),
   headingDeg: $("headingDeg"),
@@ -73,6 +77,19 @@ function clamp(value, min, max) {
 function normalizeDeg(value) {
   const wrapped = ((value % 360) + 360) % 360;
   return wrapped > 180 ? wrapped - 360 : wrapped;
+}
+
+function sanitizeFloorHeight(value) {
+  return clamp(parseNumber(value, DEFAULTS.floor_height_m), 0.1, 10);
+}
+
+function floorLevelFromHeight(height, floorHeight) {
+  const safeFloorHeight = Math.max(floorHeight, 0.1);
+  return Math.max(height / safeFloorHeight, 0);
+}
+
+function heightFromFloor(level, floorHeight) {
+  return Math.max(level, 0) * Math.max(floorHeight, 0.1);
 }
 
 function isWithinSingapore(lat, lng) {
@@ -101,9 +118,25 @@ function applyStateFromQuery() {
     state.lat = DEFAULTS.lat;
     state.lng = DEFAULTS.lng;
   }
-  const heightCandidate = parseNumber(params.get("height_m"), DEFAULTS.height_m);
-  state.height_m =
-    heightCandidate >= 20 ? clamp(heightCandidate, 1, 5000) : DEFAULTS.height_m;
+  state.floor_height_m = sanitizeFloorHeight(params.get("floor_height_m"));
+  const hasHeight = params.has("height_m");
+  const hasFloorLevel = params.has("floor_level");
+
+  if (hasHeight) {
+    const heightCandidate = parseNumber(params.get("height_m"), DEFAULTS.height_m);
+    state.height_m = clamp(heightCandidate, 1, 5000);
+  } else {
+    state.height_m = DEFAULTS.height_m;
+  }
+
+  if (hasFloorLevel) {
+    state.floor_level = Math.max(parseNumber(params.get("floor_level"), DEFAULTS.floor_level), 0);
+    if (!hasHeight) {
+      state.height_m = clamp(heightFromFloor(state.floor_level, state.floor_height_m), 1, 5000);
+    }
+  } else {
+    state.floor_level = floorLevelFromHeight(state.height_m, state.floor_height_m);
+  }
   state.heading_deg = normalizeDeg(parseNumber(params.get("heading_deg"), DEFAULTS.heading_deg));
   state.pitch_deg = clamp(parseNumber(params.get("pitch_deg"), DEFAULTS.pitch_deg), -89, 89);
   const fovCandidate = parseNumber(params.get("fov_deg"), DEFAULTS.fov_deg);
@@ -116,6 +149,8 @@ function applyStateFromQuery() {
 function syncInputsFromState() {
   ui.lat.value = state.lat;
   ui.lng.value = state.lng;
+  ui.floorLevel.value = state.floor_level.toFixed(2);
+  ui.floorHeightM.value = state.floor_height_m.toFixed(2);
   ui.heightM.value = state.height_m;
   ui.fovDeg.value = state.fov_deg;
   ui.headingDeg.value = state.heading_deg;
@@ -130,7 +165,9 @@ function readStateFromInputs() {
     state.lat = DEFAULTS.lat;
     state.lng = DEFAULTS.lng;
   }
-  state.height_m = parseNumber(ui.heightM.value, state.height_m);
+  state.floor_height_m = sanitizeFloorHeight(ui.floorHeightM.value);
+  state.floor_level = Math.max(parseNumber(ui.floorLevel.value, state.floor_level), 0);
+  state.height_m = clamp(parseNumber(ui.heightM.value, state.height_m), 1, 5000);
   state.fov_deg = clamp(parseNumber(ui.fovDeg.value, state.fov_deg), 20, 120);
   state.heading_deg = normalizeDeg(parseNumber(ui.headingDeg.value, state.heading_deg));
   state.pitch_deg = clamp(parseNumber(ui.pitchDeg.value, state.pitch_deg), -89, 89);
@@ -141,6 +178,8 @@ function buildShareUrl() {
   const params = new URLSearchParams();
   params.set("lat", state.lat.toFixed(6));
   params.set("lng", state.lng.toFixed(6));
+  params.set("floor_level", state.floor_level.toFixed(2));
+  params.set("floor_height_m", state.floor_height_m.toFixed(2));
   params.set("height_m", state.height_m.toFixed(1));
   params.set("heading_deg", state.heading_deg.toFixed(1));
   params.set("pitch_deg", state.pitch_deg.toFixed(1));
@@ -186,6 +225,24 @@ function lockCameraControls() {
 function updateInputAngles() {
   ui.headingDeg.value = state.heading_deg.toFixed(1);
   ui.pitchDeg.value = state.pitch_deg.toFixed(1);
+}
+
+function syncHeightFromFloorInputs() {
+  state.floor_height_m = sanitizeFloorHeight(ui.floorHeightM.value);
+  state.floor_level = Math.max(parseNumber(ui.floorLevel.value, state.floor_level), 0);
+  state.height_m = clamp(heightFromFloor(state.floor_level, state.floor_height_m), 1, 5000);
+  ui.floorHeightM.value = state.floor_height_m.toFixed(2);
+  ui.floorLevel.value = state.floor_level.toFixed(2);
+  ui.heightM.value = state.height_m.toFixed(1);
+}
+
+function syncFloorFromHeightInput() {
+  state.floor_height_m = sanitizeFloorHeight(ui.floorHeightM.value);
+  state.height_m = clamp(parseNumber(ui.heightM.value, state.height_m), 1, 5000);
+  state.floor_level = floorLevelFromHeight(state.height_m, state.floor_height_m);
+  ui.floorHeightM.value = state.floor_height_m.toFixed(2);
+  ui.floorLevel.value = state.floor_level.toFixed(2);
+  ui.heightM.value = state.height_m.toFixed(1);
 }
 
 function installOrientationDrag() {
@@ -509,6 +566,15 @@ function bindUi() {
   });
   ui.copyBtn.addEventListener("click", () => {
     void copyShareLink();
+  });
+  ui.floorLevel.addEventListener("input", () => {
+    syncHeightFromFloorInputs();
+  });
+  ui.floorHeightM.addEventListener("input", () => {
+    syncHeightFromFloorInputs();
+  });
+  ui.heightM.addEventListener("input", () => {
+    syncFloorFromHeightInput();
   });
   ui.searchInput.addEventListener("input", (event) => {
     const query = event.target.value.trim();
