@@ -5,3 +5,7 @@ token.txt
 .env
 .env.*
 worker/.dev.vars
+
+.dev.vars*
+!.dev.vars.example
+!.env.example
