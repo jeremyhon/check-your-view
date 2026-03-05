@@ -1,0 +1,22 @@
+{
+  "name": "condo-view-wrapper",
+  "version": "1.0.0",
+  "description": "Thin wrapper viewer for Singapore condo view simulation using geospatial camera parameters.",
+  "main": "worker/src/index.js",
+  "scripts": {
+    "viewer:dev": "serve frontend --listen 5173",
+    "worker:dev": "wrangler dev --config worker/wrangler.toml",
+    "worker:deploy": "wrangler deploy --config worker/wrangler.toml"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "cesium": "^1.139.0"
+  },
+  "devDependencies": {
+    "serve": "^14.2.6",
+    "wrangler": "^4.70.0"
+  }
+}

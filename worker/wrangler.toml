@@ -1,0 +1,10 @@
+name = "condo-view-onemap-proxy"
+main = "src/index.js"
+compatibility_date = "2025-12-01"
+
+[vars]
+ONEMAP_BASE_URL = "https://www.onemap.gov.sg"
+ONEMAP_REFERER = "https://www.onemap.gov.sg/3d"
+# Comma-separated allowlist of frontend origins.
+# Example: "http://localhost:5173,https://viewer.example.com"
+ALLOWED_ORIGINS = "*"
