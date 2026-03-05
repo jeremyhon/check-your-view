@@ -5,13 +5,13 @@ const defaultProxyBase = runtimeConfig.proxyBase || "http://localhost:8787";
 
 const DEFAULTS = {
   proxy_base: defaultProxyBase,
-  lat: 1.3197,
-  lng: 103.8422,
-  height_m: 150,
-  floor_level: 50,
+  lat: 1.284,
+  lng: 103.860709,
+  height_m: 196,
+  floor_level: 65.33,
   floor_height_m: 3,
-  heading_deg: 0,
-  pitch_deg: -80,
+  heading_deg: -68.2,
+  pitch_deg: -6.4,
   fov_deg: 60,
   base_map: "OrthoJPG",
 };
