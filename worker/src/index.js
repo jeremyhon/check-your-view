@@ -2,10 +2,24 @@ const ALLOWED_PREFIXES = [
   "/omapi/tilesets/sg_noterrain_tiles/",
   "/maps/tiles/OrthoJPG/",
   "/maps/tiles/DefaultRoad/",
+  "/api/common/elastic/search",
 ];
 
 const ALLOWED_METHODS = "GET,HEAD,OPTIONS";
 const ALLOWED_HEADERS = "Content-Type,Authorization,Range,If-Modified-Since,If-None-Match";
+const TRANSPARENT_PIXEL_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=";
+
+function base64ToUint8Array(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+const TRANSPARENT_PIXEL_BYTES = base64ToUint8Array(TRANSPARENT_PIXEL_BASE64);
 
 function isAllowedPath(pathname) {
   if (pathname.includes("..")) {
@@ -52,6 +66,20 @@ function createJsonResponse(status, payload, corsHeaders) {
     Object.entries(corsHeaders).forEach(([k, v]) => headers.set(k, v));
   }
   return new Response(JSON.stringify(payload), { status, headers });
+}
+
+function createTransparentTileResponse(requestMethod, corsHeaders) {
+  const headers = new Headers({
+    "Content-Type": "image/png",
+    "Cache-Control": "public, max-age=300",
+  });
+  if (corsHeaders) {
+    Object.entries(corsHeaders).forEach(([k, v]) => headers.set(k, v));
+  }
+  if (requestMethod === "HEAD") {
+    return new Response(null, { status: 200, headers });
+  }
+  return new Response(TRANSPARENT_PIXEL_BYTES, { status: 200, headers });
 }
 
 function normalizeContentType(pathname, upstreamContentType) {
@@ -134,21 +162,63 @@ export default {
 
     upstreamHeaders.set("Referer", env.ONEMAP_REFERER);
 
-    const upstreamResponse = await fetch(upstreamUrl, {
-      method: request.method,
-      headers: upstreamHeaders,
-      redirect: "follow",
-      cf: {
-        cacheEverything: true,
-        cacheTtlByStatus: {
-          "200-299": 3600,
-          404: 60,
-          "500-599": 0,
+    const isImageryPath = url.pathname.startsWith("/maps/tiles/");
+    let upstreamResponse;
+    try {
+      upstreamResponse = await fetch(upstreamUrl, {
+        method: request.method,
+        headers: upstreamHeaders,
+        redirect: "follow",
+        cf: {
+          cacheEverything: true,
+          cacheTtlByStatus: {
+            "200-299": 3600,
+            404: 60,
+            "500-599": 0,
+          },
         },
-      },
-    });
+      });
+    } catch (error) {
+      if (isImageryPath) {
+        return createTransparentTileResponse(request.method, corsHeaders);
+      }
+      return createJsonResponse(
+        502,
+        { error: "Upstream fetch failed", detail: String(error) },
+        corsHeaders,
+      );
+    }
 
     const responseHeaders = copyResponseHeaders(upstreamResponse.headers, corsHeaders, url.pathname);
+
+    if (isImageryPath) {
+      if (!upstreamResponse.ok) {
+        return createTransparentTileResponse(request.method, corsHeaders);
+      }
+      if (request.method === "GET") {
+        if (!upstreamResponse.body) {
+          return createTransparentTileResponse(request.method, corsHeaders);
+        }
+        // Probe for truly empty chunked bodies without buffering whole tiles.
+        const [probeStream, passthroughStream] = upstreamResponse.body.tee();
+        const reader = probeStream.getReader();
+        const firstChunk = await reader.read();
+        try {
+          await reader.cancel();
+        } catch {
+          // ignore reader cancel failures
+        }
+        if (firstChunk.done) {
+          return createTransparentTileResponse(request.method, corsHeaders);
+        }
+        return new Response(passthroughStream, {
+          status: upstreamResponse.status,
+          statusText: upstreamResponse.statusText,
+          headers: responseHeaders,
+        });
+      }
+    }
+
     return new Response(upstreamResponse.body, {
       status: upstreamResponse.status,
       statusText: upstreamResponse.statusText,

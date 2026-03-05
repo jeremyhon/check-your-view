@@ -63,7 +63,6 @@ Configured in `worker/wrangler.toml`:
 - `height_m`
 - `heading_deg`
 - `pitch_deg`
-- `roll_deg`
 - `fov_deg`
 
 This schema represents exact camera position and orientation with height in meters.
@@ -72,5 +71,8 @@ This schema represents exact camera position and orientation with height in mete
 
 - Single camera mode only.
 - Camera position locked to `lat/lng/height_m`.
+- Search box above mini map (OneMap search endpoint) for quick location jumps.
+- Mini map above coordinate fields for click/drag location selection.
 - Mouse drag changes orientation (`heading_deg`, `pitch_deg`) only.
 - Share link encodes exact camera pose and proxy URL.
+- 3D tiles use aggressive LOD skipping/culling to avoid loading far-distance content unnecessarily.

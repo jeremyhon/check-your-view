@@ -8,6 +8,10 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/cesium@1.139.0/Build/Cesium/Widgets/widgets.css"
     />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
+    />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -16,8 +20,12 @@
         <h1>Condo View Viewer</h1>
         <p class="muted">Fixed camera position, orientation-only control.</p>
 
-        <label for="proxyBase">Proxy base URL</label>
-        <input id="proxyBase" type="text" />
+        <label for="searchInput">Search Location</label>
+        <input id="searchInput" type="text" placeholder="Search address or building" />
+        <div id="searchResults" class="search-results"></div>
+
+        <label for="miniMap">Location Mini Map</label>
+        <div id="miniMap" aria-label="Location mini map"></div>
 
         <div class="row">
           <div>
@@ -52,11 +60,7 @@
           </div>
         </div>
 
-        <div class="row">
-          <div>
-            <label for="rollDeg">Roll (deg)</label>
-            <input id="rollDeg" type="number" step="0.1" />
-          </div>
+        <div class="row row-single">
           <div>
             <label for="baseMap">Basemap</label>
             <select id="baseMap">
@@ -80,6 +84,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/cesium@1.139.0/Build/Cesium/Cesium.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
     <script type="module" src="./app.js"></script>
   </body>
 </html>

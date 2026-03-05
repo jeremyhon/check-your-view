@@ -42,6 +42,47 @@ h1 {
   font-size: 13px;
 }
 
+#miniMap {
+  width: 100%;
+  height: 180px;
+  border: 1px solid #c5d2df;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.search-results {
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid #d8e1ea;
+  border-radius: 8px;
+  background: #fff;
+  margin-top: 6px;
+  display: none;
+}
+
+.search-results.visible {
+  display: block;
+}
+
+.search-result-item {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid #eef3f8;
+  border-radius: 0;
+  background: #fff;
+  padding: 9px 10px;
+  cursor: pointer;
+}
+
+.search-result-item:last-child {
+  border-bottom: 0;
+}
+
+.search-result-item:hover {
+  background: #f1f7ff;
+}
+
 label {
   display: block;
   font-size: 12px;
@@ -63,6 +104,10 @@ button {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+.row-single {
+  grid-template-columns: 1fr;
 }
 
 .actions {
