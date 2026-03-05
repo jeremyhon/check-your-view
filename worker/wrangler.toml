@@ -1,4 +1,4 @@
-name = "condo-view-onemap-proxy"
+name = "check-your-view-proxy"
 main = "src/index.js"
 compatibility_date = "2025-12-01"
 

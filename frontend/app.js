@@ -30,7 +30,6 @@ let fixedPosition;
 let miniMap;
 let miniMarker;
 let loadedDataKey = "";
-let orthoFallbackApplied = false;
 let dragging = false;
 let activePointerId = null;
 let searchDebounceId = null;
@@ -133,9 +132,6 @@ function readStateFromInputs() {
   state.heading_deg = normalizeDeg(parseNumber(ui.headingDeg.value, state.heading_deg));
   state.pitch_deg = clamp(parseNumber(ui.pitchDeg.value, state.pitch_deg), -89, 89);
   state.base_map = ui.baseMap.value === "DefaultRoad" ? "DefaultRoad" : "OrthoJPG";
-  if (state.base_map === "OrthoJPG") {
-    orthoFallbackApplied = false;
-  }
 }
 
 function buildShareUrl() {
@@ -395,18 +391,6 @@ function refreshBasemapLayer() {
     minimumLevel: 11,
     maximumLevel: 19,
     credit: "OneMap",
-  });
-  let errorCount = 0;
-  provider.errorEvent.addEventListener(() => {
-    errorCount += 1;
-    if (state.base_map === "OrthoJPG" && !orthoFallbackApplied && errorCount >= 3) {
-      orthoFallbackApplied = true;
-      state.base_map = "DefaultRoad";
-      ui.baseMap.value = "DefaultRoad";
-      refreshBasemapLayer();
-      syncUrlToState();
-      setStatus("Ortho tiles unavailable here. Switched to Road basemap.");
-    }
   });
   viewer.imageryLayers.addImageryProvider(provider);
 }

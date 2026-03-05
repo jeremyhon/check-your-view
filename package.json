@@ -1,5 +1,5 @@
 {
-  "name": "condo-view-wrapper",
+  "name": "check-your-view",
   "version": "1.0.0",
   "description": "Thin wrapper viewer for Singapore condo view simulation using geospatial camera parameters.",
   "main": "worker/src/index.js",
