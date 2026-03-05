@@ -5,3 +5,4 @@ token.txt
 .env
 .env.*
 worker/.dev.vars
+.codex/
