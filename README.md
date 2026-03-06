@@ -33,26 +33,32 @@ cp worker/.dev.vars.example worker/.dev.vars
 # edit worker/.dev.vars and set ONEMAP_API_TOKEN
 ```
 
-3. Run Worker locally:
+3. Run both frontend + worker in one command (hot reload enabled):
 
 ```bash
-npm run worker:dev
+npm run dev
 ```
 
-4. Run frontend locally (separate terminal):
-
-```bash
-npm run viewer:dev
-```
-
-5. Open viewer:
+4. Open viewer:
 
 `http://localhost:5173`
 
-6. Deploy Worker:
+This uses fixed dev ports:
+
+- frontend: `5173`
+- worker proxy: `8787`
+
+5. Deploy Worker:
 
 ```bash
 npm run worker:deploy
+```
+
+Optional: run services separately:
+
+```bash
+npm run viewer:dev
+npm run worker:dev
 ```
 
 ## Worker Config
