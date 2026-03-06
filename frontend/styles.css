@@ -35,7 +35,9 @@ body {
   background: var(--panel);
   overflow-y: auto;
   z-index: 1100;
-  transition: transform 0.22s ease, opacity 0.22s ease;
+  transition:
+    transform 0.22s ease,
+    opacity 0.22s ease;
   box-shadow: 0 8px 26px rgba(20, 32, 43, 0.16);
 }
 

@@ -196,7 +196,11 @@ export default {
       );
     }
 
-    const responseHeaders = copyResponseHeaders(upstreamResponse.headers, corsHeaders, url.pathname);
+    const responseHeaders = copyResponseHeaders(
+      upstreamResponse.headers,
+      corsHeaders,
+      url.pathname,
+    );
 
     if (isImageryPath) {
       if (!upstreamResponse.ok) {

@@ -1,4 +1,4 @@
-/* global Cesium, L */
+/* global Cesium */
 
 import { clamp, normalizeDeg, parseNumber } from "./js/utils.js";
 import {
@@ -9,84 +9,38 @@ import {
   setDebugPanelVisibility,
   syncDebugInputsFromState,
 } from "./js/debug-controls.js";
+import {
+  CAMERA_FAR_METERS,
+  DEBUG_DEFAULTS,
+  DEFAULTS,
+  PANEL_COLLAPSE_STORAGE_KEY,
+  SG_LIMITS,
+  SINGAPORE_BOUNDS,
+  SINGAPORE_RECTANGLE_DEGREES,
+  debugUiEnabled,
+  isMobileClient,
+} from "./js/constants.js";
+import { createLocationController } from "./js/location-controls.js";
 import { createPanelController, setMiniMapInstructionText } from "./js/panel-controls.js";
-
-const runtimeConfig = window.CHECK_YOUR_VIEW_CONFIG || {};
-const defaultProxyBase = runtimeConfig.proxyBase || "http://localhost:8787";
-const isLocalHost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
-const isMobileClient =
-  (typeof window.matchMedia === "function" &&
-    window.matchMedia("(max-width: 960px), (pointer: coarse)").matches) ||
-  /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
-const debugUiEnabled = new URLSearchParams(window.location.search).get("debug") === "1";
-const defaultMaxSse = isMobileClient ? 64 : 4;
-const CAMERA_FAR_METERS = 2_000_000;
-const PANEL_COLLAPSE_STORAGE_KEY = "check-your-view:panel-collapsed";
-
-const DEFAULTS = {
-  proxy_base: defaultProxyBase,
-  lat: 1.284048,
-  lng: 103.860691,
-  height_m: 196,
-  floor_level: 65.33,
-  floor_height_m: 3,
-  heading_deg: -85.6,
-  pitch_deg: -15.8,
-  fov_deg: 60,
-  base_map: "OrthoJPG",
-};
-
-const DEBUG_DEFAULTS = isLocalHost
-  ? {
-      fogEnabled: false,
-      dynamicScreenSpaceError: false,
-      maximumScreenSpaceError: defaultMaxSse,
-      skipLevelOfDetail: true,
-      cullWithChildrenBounds: true,
-      cullRequestsWhileMoving: false,
-      cullRequestsWhileMovingMultiplier: 12,
-      loadSiblings: true,
-      foveatedScreenSpaceError: true,
-    }
-  : {
-      fogEnabled: true,
-      dynamicScreenSpaceError: true,
-      maximumScreenSpaceError: defaultMaxSse,
-      skipLevelOfDetail: true,
-      cullWithChildrenBounds: true,
-      cullRequestsWhileMoving: true,
-      cullRequestsWhileMovingMultiplier: 12,
-      loadSiblings: false,
-      foveatedScreenSpaceError: true,
-    };
-
-const SINGAPORE_RECTANGLE = Cesium.Rectangle.fromDegrees(103.55, 1.15, 104.1, 1.5);
-const SINGAPORE_BOUNDS = [
-  [1.15, 103.55],
-  [1.5, 104.1],
-];
-const SG_LIMITS = {
-  minLat: 1.15,
-  maxLat: 1.5,
-  minLng: 103.55,
-  maxLng: 104.1,
-};
+const SINGAPORE_RECTANGLE = Cesium.Rectangle.fromDegrees(
+  SINGAPORE_RECTANGLE_DEGREES.west,
+  SINGAPORE_RECTANGLE_DEGREES.south,
+  SINGAPORE_RECTANGLE_DEGREES.east,
+  SINGAPORE_RECTANGLE_DEGREES.north,
+);
 
 const state = { ...DEFAULTS };
 const debugState = { ...DEBUG_DEFAULTS };
 let viewer;
 let tileset;
 let fixedPosition;
-let miniMap;
-let miniMarker;
 let loadedDataKey = "";
 let dragging = false;
 let activePointerId = null;
-let searchDebounceId = null;
-let searchAbortController = null;
 let lastX = 0;
 let lastY = 0;
 let panelController;
+let locationController;
 
 const $ = (id) => document.getElementById(id);
 
@@ -345,144 +299,9 @@ function baseMapUrl() {
   return `${state.proxy_base}/maps/tiles/${state.base_map}/{z}/{x}/{y}.png`;
 }
 
-function miniMapBaseUrl() {
-  return `${state.proxy_base}/maps/tiles/DefaultRoad/{z}/{x}/{y}.png`;
-}
-
-function syncMiniMapFromState(recenter = false) {
-  if (!miniMap || !miniMarker) {
-    return;
-  }
-  const center = [state.lat, state.lng];
-  miniMarker.setLatLng(center);
-  if (recenter) {
-    miniMap.setView(center, miniMap.getZoom(), { animate: false });
-  }
-}
-
-function updateLocationFromMiniMap(lat, lng) {
-  updateLocation(lat, lng, "Location updated from mini map.");
-}
-
-function initializeMiniMap() {
-  if (typeof L === "undefined" || !ui.miniMap) {
-    setStatus("Mini map failed to load.", true);
-    return;
-  }
-  miniMap = L.map(ui.miniMap, {
-    zoomControl: true,
-    attributionControl: false,
-    minZoom: 11,
-    maxZoom: 19,
-  });
-  miniMap.setMaxBounds(SINGAPORE_BOUNDS);
-
-  L.tileLayer(miniMapBaseUrl(), {
-    minZoom: 11,
-    maxZoom: 19,
-    bounds: SINGAPORE_BOUNDS,
-    noWrap: true,
-  }).addTo(miniMap);
-
-  miniMap.setView([state.lat, state.lng], 15);
-  miniMarker = L.marker([state.lat, state.lng], { draggable: true }).addTo(miniMap);
-
-  miniMap.on("click", (event) => {
-    const { lat, lng } = event.latlng;
-    miniMarker.setLatLng([lat, lng]);
-    updateLocationFromMiniMap(lat, lng);
-  });
-
-  miniMarker.on("dragend", () => {
-    const { lat, lng } = miniMarker.getLatLng();
-    updateLocationFromMiniMap(lat, lng);
-  });
-
-  window.setTimeout(() => miniMap.invalidateSize(), 0);
-}
-
-function clearSearchResults() {
-  ui.searchResults.innerHTML = "";
-  ui.searchResults.classList.remove("visible");
-}
-
-function updateLocation(lat, lng, message) {
-  state.lat = lat;
-  state.lng = lng;
-  ui.lat.value = lat.toFixed(6);
-  ui.lng.value = lng.toFixed(6);
-  syncMiniMapFromState(true);
+function handleLocationChanged() {
   setFixedCameraPose();
   syncUrlToState();
-  setStatus(message);
-}
-
-function handleSearchSelect(result) {
-  const lat = parseNumber(result.LATITUDE, state.lat);
-  const lng = parseNumber(result.LONGITUDE, state.lng);
-  if (!isWithinSingapore(lat, lng)) {
-    setStatus("Search result is outside supported Singapore bounds.", true);
-    return;
-  }
-  const label = result.SEARCHVAL || result.ADDRESS || "selected location";
-  ui.searchInput.value = label;
-  clearSearchResults();
-  updateLocation(lat, lng, `Moved to: ${label}`);
-}
-
-function renderSearchResults(results) {
-  ui.searchResults.innerHTML = "";
-  if (results.length === 0) {
-    const empty = document.createElement("button");
-    empty.className = "search-result-item";
-    empty.type = "button";
-    empty.textContent = "No results";
-    empty.disabled = true;
-    ui.searchResults.appendChild(empty);
-    ui.searchResults.classList.add("visible");
-    return;
-  }
-
-  results.slice(0, 8).forEach((result) => {
-    const button = document.createElement("button");
-    button.className = "search-result-item";
-    button.type = "button";
-    const title = result.SEARCHVAL || result.ADDRESS || "Unnamed result";
-    const subtitle = result.ADDRESS && result.ADDRESS !== title ? ` - ${result.ADDRESS}` : "";
-    button.textContent = `${title}${subtitle}`;
-    button.addEventListener("click", () => handleSearchSelect(result));
-    ui.searchResults.appendChild(button);
-  });
-  ui.searchResults.classList.add("visible");
-}
-
-async function runLocationSearch(query) {
-  if (query.length < 2) {
-    clearSearchResults();
-    return;
-  }
-
-  if (searchAbortController) {
-    searchAbortController.abort();
-  }
-  searchAbortController = new AbortController();
-
-  const url = `${state.proxy_base}/api/common/elastic/search?searchVal=${encodeURIComponent(query)}&returnGeom=Y&getAddrDetails=Y&pageNum=1`;
-  try {
-    const response = await fetch(url, { signal: searchAbortController.signal });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    const payload = await response.json();
-    const results = Array.isArray(payload.results) ? payload.results : [];
-    renderSearchResults(results);
-  } catch (error) {
-    if (error.name === "AbortError") {
-      return;
-    }
-    clearSearchResults();
-    setStatus(`Search failed: ${error.message}`, true);
-  }
 }
 
 function refreshBasemapLayer() {
@@ -560,7 +379,7 @@ async function initializeViewer() {
   lockCameraControls();
   installOrientationDrag();
   setFixedCameraPose();
-  initializeMiniMap();
+  locationController.initializeMiniMap();
 
   // Avoid blank startup while heavy 3D tiles are loading.
   setStatus("Loading OneMap tiles...");
@@ -577,7 +396,7 @@ async function applyPoseFromForm() {
   try {
     readStateFromInputs();
     await ensureSceneDataLoaded();
-    syncMiniMapFromState(true);
+    locationController.syncMiniMapFromState(true);
     setFixedCameraPose();
     syncUrlToState();
     setStatus("Pose applied.");
@@ -598,6 +417,7 @@ async function copyShareLink() {
 
 function bindUi() {
   panelController.bindPanelToggle();
+  locationController.bindSearchControls();
   ui.applyBtn.addEventListener("click", () => {
     void applyPoseFromForm();
   });
@@ -619,43 +439,24 @@ function bindUi() {
     debugState,
     onChange: (controlId) => {
       applyDebugSettingsLive({ viewer, tileset, debugState });
-      console.log(
-        `[debug] ${controlId} = ${getDebugValueByControlId(controlId, debugState)}`,
-        { ...debugState },
-      );
+      console.log(`[debug] ${controlId} = ${getDebugValueByControlId(controlId, debugState)}`, {
+        ...debugState,
+      });
     },
-  });
-  ui.searchInput.addEventListener("input", (event) => {
-    const query = event.target.value.trim();
-    if (searchDebounceId) {
-      window.clearTimeout(searchDebounceId);
-    }
-    searchDebounceId = window.setTimeout(() => {
-      void runLocationSearch(query);
-    }, 250);
-  });
-  ui.searchInput.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter") {
-      return;
-    }
-    const first = ui.searchResults.querySelector(".search-result-item:not([disabled])");
-    if (first) {
-      first.click();
-      event.preventDefault();
-    }
-  });
-  document.addEventListener("click", (event) => {
-    const target = event.target;
-    if (target === ui.searchInput || ui.searchResults.contains(target)) {
-      return;
-    }
-    clearSearchResults();
   });
 }
 
 async function bootstrap() {
   applyStateFromQuery();
   setMiniMapInstructionText(ui, isMobileClient);
+  locationController = createLocationController({
+    ui,
+    state,
+    singaporeBounds: SINGAPORE_BOUNDS,
+    isWithinSingapore,
+    setStatus,
+    onLocationChanged: handleLocationChanged,
+  });
   panelController = createPanelController({
     ui,
     storageKey: PANEL_COLLAPSE_STORAGE_KEY,
@@ -664,8 +465,8 @@ async function bootstrap() {
       if (viewer) {
         viewer.scene.requestRender();
       }
-      if (miniMap && !collapsed) {
-        miniMap.invalidateSize();
+      if (!collapsed) {
+        locationController.invalidateMiniMap();
       }
     },
   });

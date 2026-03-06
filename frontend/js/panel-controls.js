@@ -2,9 +2,7 @@ export function setMiniMapInstructionText(ui, isMobileClient) {
   if (!ui.miniMapInstruction) {
     return;
   }
-  ui.miniMapInstruction.textContent = `${
-    isMobileClient ? "Tap" : "Click"
-  } on the map to move.`;
+  ui.miniMapInstruction.textContent = `${isMobileClient ? "Tap" : "Click"} on the map to move.`;
 }
 
 export function createPanelController({ ui, storageKey, onAfterToggle, defaultCollapsed = false }) {

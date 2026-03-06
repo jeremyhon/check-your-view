@@ -110,6 +110,32 @@ Requirements:
 
 Script path: `scripts/deploy.sh`
 
+## Linting And Formatting
+
+Run lint checks:
+
+```bash
+npm run lint
+```
+
+Fix lint issues automatically where possible:
+
+```bash
+npm run lint:fix
+```
+
+Check formatting:
+
+```bash
+npm run format
+```
+
+Apply formatting:
+
+```bash
+npm run format:fix
+```
+
 ## Planned View URL Schema (Frontend)
 
 - `lat`
@@ -131,6 +157,6 @@ This schema represents exact camera position and orientation with height in mete
 - Search box above mini map (OneMap search endpoint) for quick location jumps.
 - Mini map above coordinate fields for click/drag location selection.
 - Mouse drag changes orientation (`heading_deg`, `pitch_deg`) only.
-- Share link encodes exact camera pose and proxy URL.
+- Share link encodes exact camera pose values.
 - Debug rendering controls are hidden by default and shown with `?debug=1`.
 - 3D tiles use aggressive LOD skipping/culling to avoid loading far-distance content unnecessarily.
