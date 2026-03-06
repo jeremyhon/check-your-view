@@ -30,6 +30,7 @@ import {
   parseStateFromQuery,
   sanitizeFloorHeight,
 } from "./js/pose-state.js";
+import { createCameraController } from "./js/camera-controls.js";
 const SINGAPORE_RECTANGLE = Cesium.Rectangle.fromDegrees(
   SINGAPORE_RECTANGLE_DEGREES.west,
   SINGAPORE_RECTANGLE_DEGREES.south,
@@ -41,14 +42,10 @@ const state = { ...DEFAULTS };
 const debugState = { ...DEBUG_DEFAULTS };
 let viewer;
 let tileset;
-let fixedPosition;
 let loadedDataKey = "";
-let dragging = false;
-let activePointerId = null;
-let lastX = 0;
-let lastY = 0;
 let panelController;
 let locationController;
+let cameraController;
 
 const $ = (id) => document.getElementById(id);
 
@@ -120,31 +117,6 @@ function setStatus(message, isError = false) {
   ui.status.style.color = isError ? "#b42318" : "#1f2937";
 }
 
-function setFixedCameraPose() {
-  fixedPosition = Cesium.Cartesian3.fromDegrees(state.lng, state.lat, state.height_m);
-  viewer.camera.setView({
-    destination: fixedPosition,
-    orientation: {
-      heading: Cesium.Math.toRadians(state.heading_deg),
-      pitch: Cesium.Math.toRadians(state.pitch_deg),
-      roll: 0,
-    },
-  });
-  viewer.camera.frustum.fov = Cesium.Math.toRadians(state.fov_deg);
-  viewer.camera.frustum.near = 0.2;
-  viewer.camera.frustum.far = CAMERA_FAR_METERS;
-}
-
-function lockCameraControls() {
-  const c = viewer.scene.screenSpaceCameraController;
-  c.enableInputs = false;
-  c.enableTranslate = false;
-  c.enableZoom = false;
-  c.enableRotate = false;
-  c.enableTilt = false;
-  c.enableLook = false;
-}
-
 function updateInputAngles() {
   ui.headingDeg.value = state.heading_deg.toFixed(1);
   ui.pitchDeg.value = state.pitch_deg.toFixed(1);
@@ -168,66 +140,12 @@ function syncFloorFromHeightInput() {
   ui.heightM.value = state.height_m.toFixed(1);
 }
 
-function installOrientationDrag() {
-  const canvas = viewer.scene.canvas;
-  canvas.style.cursor = "grab";
-
-  canvas.addEventListener("pointerdown", (event) => {
-    // Primary drag input for mouse/touch/pen.
-    if (event.pointerType === "mouse" && event.button > 2) {
-      return;
-    }
-    activePointerId = event.pointerId;
-    dragging = true;
-    lastX = event.clientX;
-    lastY = event.clientY;
-    canvas.style.cursor = "grabbing";
-    try {
-      canvas.setPointerCapture(event.pointerId);
-    } catch {
-      // Older browsers may not support pointer capture.
-    }
-    event.preventDefault();
-  });
-
-  canvas.addEventListener("pointermove", (event) => {
-    if (!dragging || event.pointerId !== activePointerId) {
-      return;
-    }
-    const dx = event.clientX - lastX;
-    const dy = event.clientY - lastY;
-    lastX = event.clientX;
-    lastY = event.clientY;
-
-    state.heading_deg = normalizeDeg(state.heading_deg - dx * 0.2);
-    state.pitch_deg = clamp(state.pitch_deg + dy * 0.2, -89, 89);
-    setFixedCameraPose();
-    updateInputAngles();
-    syncUrlToState();
-    event.preventDefault();
-  });
-
-  const endDrag = (event) => {
-    if (event.pointerId !== activePointerId) {
-      return;
-    }
-    dragging = false;
-    activePointerId = null;
-    canvas.style.cursor = "grab";
-    event.preventDefault();
-  };
-
-  canvas.addEventListener("pointerup", endDrag);
-  canvas.addEventListener("pointercancel", endDrag);
-  canvas.addEventListener("contextmenu", (event) => event.preventDefault());
-}
-
 function baseMapUrl() {
   return `${state.proxy_base}/maps/tiles/${state.base_map}/{z}/{x}/{y}.png`;
 }
 
 function handleLocationChanged() {
-  setFixedCameraPose();
+  cameraController.applyFixedPose();
   syncUrlToState();
 }
 
@@ -303,9 +221,16 @@ async function initializeViewer() {
     }
   });
 
-  lockCameraControls();
-  installOrientationDrag();
-  setFixedCameraPose();
+  cameraController = createCameraController({
+    viewer,
+    state,
+    cameraFarMeters: CAMERA_FAR_METERS,
+    onPoseChanged: syncUrlToState,
+    onOrientationInputUpdate: updateInputAngles,
+  });
+  cameraController.lockPositionControls();
+  cameraController.installOrientationDrag();
+  cameraController.applyFixedPose();
   locationController.initializeMiniMap();
 
   // Avoid blank startup while heavy 3D tiles are loading.
@@ -324,7 +249,7 @@ async function applyPoseFromForm() {
     readStateFromInputs();
     await ensureSceneDataLoaded();
     locationController.syncMiniMapFromState(true);
-    setFixedCameraPose();
+    cameraController.applyFixedPose();
     syncUrlToState();
     setStatus("Pose applied.");
   } catch (error) {
