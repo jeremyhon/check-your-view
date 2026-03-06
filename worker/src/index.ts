@@ -18,18 +18,18 @@ type Env = {
   ONEMAP_API_TOKEN?: string;
 };
 
-function base64ToUint8Array(base64) {
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) {
     bytes[i] = binary.charCodeAt(i);
   }
-  return bytes;
+  return bytes.buffer;
 }
 
-const TRANSPARENT_PIXEL_BYTES = base64ToUint8Array(TRANSPARENT_PIXEL_BASE64);
+const TRANSPARENT_PIXEL_BUFFER = base64ToArrayBuffer(TRANSPARENT_PIXEL_BASE64);
 
-function isAllowedPath(pathname) {
+function isAllowedPath(pathname: string): boolean {
   if (pathname.includes("..")) {
     return false;
   }
@@ -94,10 +94,10 @@ function createTransparentTileResponse(
   if (requestMethod === "HEAD") {
     return new Response(null, { status: 200, headers });
   }
-  return new Response(TRANSPARENT_PIXEL_BYTES, { status: 200, headers });
+  return new Response(TRANSPARENT_PIXEL_BUFFER, { status: 200, headers });
 }
 
-function normalizeContentType(pathname, upstreamContentType) {
+function normalizeContentType(pathname: string, upstreamContentType: string | null): string | null {
   if (pathname.startsWith("/maps/tiles/OrthoJPG/")) {
     return "image/jpeg";
   }
@@ -140,11 +140,11 @@ function copyResponseHeaders(
   return headers;
 }
 
-function isSearchPath(pathname) {
+function isSearchPath(pathname: string): boolean {
   return pathname.startsWith("/api/common/elastic/search");
 }
 
-function isImageryPath(pathname) {
+function isImageryPath(pathname: string): boolean {
   return pathname.startsWith("/maps/tiles/");
 }
 
@@ -197,7 +197,7 @@ async function handleImageryRoute(
 ): Promise<Response> {
   const upstreamUrl = buildUpstreamUrl(env, url);
   const upstreamHeaders = buildUpstreamHeaders(request, url.pathname, env);
-  let upstreamResponse;
+  let upstreamResponse: Response;
   try {
     upstreamResponse = await fetchUpstream(request, upstreamUrl, upstreamHeaders);
   } catch {
@@ -246,7 +246,7 @@ async function handleProxyRoute(
 ): Promise<Response> {
   const upstreamUrl = buildUpstreamUrl(env, url);
   const upstreamHeaders = buildUpstreamHeaders(request, url.pathname, env);
-  let upstreamResponse;
+  let upstreamResponse: Response;
   try {
     upstreamResponse = await fetchUpstream(request, upstreamUrl, upstreamHeaders);
   } catch (error) {

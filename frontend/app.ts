@@ -34,6 +34,19 @@ import {
 } from "./js/pose-state";
 import { createCameraController } from "./js/camera-controls";
 import { createSceneDataController } from "./js/scene-data";
+import type { Cesium3DTileset, Viewer } from "cesium";
+import type {
+  CameraController,
+  DebugControlId,
+  DebugState,
+  FloorSyncMode,
+  LocationController,
+  PanelController,
+  SceneDataController,
+  UiElements,
+  ViewState,
+} from "./js/types";
+
 const SINGAPORE_RECTANGLE = Cesium.Rectangle.fromDegrees(
   SINGAPORE_RECTANGLE_DEGREES.west,
   SINGAPORE_RECTANGLE_DEGREES.south,
@@ -41,56 +54,62 @@ const SINGAPORE_RECTANGLE = Cesium.Rectangle.fromDegrees(
   SINGAPORE_RECTANGLE_DEGREES.north,
 );
 
-const state = { ...DEFAULTS };
-const debugState = { ...DEBUG_DEFAULTS };
-let viewer;
-let tileset;
-let panelController;
-let locationController;
-let cameraController;
-let sceneDataController;
+const state: ViewState = { ...DEFAULTS };
+const debugState: DebugState = { ...DEBUG_DEFAULTS };
+let viewer: Viewer | null = null;
+let tileset: Cesium3DTileset | null = null;
+let panelController!: PanelController;
+let locationController!: LocationController;
+let cameraController!: CameraController;
+let sceneDataController!: SceneDataController;
 
-const $ = (id: string): any => document.getElementById(id);
+function requireElement<T extends HTMLElement>(id: string): T {
+  const element = document.getElementById(id);
+  if (!element) {
+    throw new Error(`Missing required element: #${id}`);
+  }
+  return element as T;
+}
 
-const ui = {
-  miniMap: $("miniMap"),
-  miniMapInstruction: $("miniMapInstruction"),
-  lat: $("lat"),
-  lng: $("lng"),
-  searchInput: $("searchInput"),
-  searchResults: $("searchResults"),
-  floorLevel: $("floorLevel"),
-  floorHeightM: $("floorHeightM"),
-  heightM: $("heightM"),
-  fovDeg: $("fovDeg"),
-  headingDeg: $("headingDeg"),
-  pitchDeg: $("pitchDeg"),
-  baseMap: $("baseMap"),
-  debugPanel: $("debugPanel"),
-  debugFogEnabled: $("debugFogEnabled"),
-  debugDynamicSse: $("debugDynamicSse"),
-  debugSkipLod: $("debugSkipLod"),
-  debugFoveatedSse: $("debugFoveatedSse"),
-  debugCullWithChildren: $("debugCullWithChildren"),
-  debugCullWhileMoving: $("debugCullWhileMoving"),
-  debugLoadSiblings: $("debugLoadSiblings"),
-  debugMaxSse: $("debugMaxSse"),
-  debugCullMultiplier: $("debugCullMultiplier"),
-  panelToggleBtn: $("panelToggleBtn"),
-  applyBtn: $("applyBtn"),
-  copyBtn: $("copyBtn"),
-  status: $("status"),
+const ui: UiElements = {
+  miniMap: requireElement("miniMap"),
+  miniMapInstruction: requireElement("miniMapInstruction"),
+  lat: requireElement("lat"),
+  lng: requireElement("lng"),
+  searchInput: requireElement("searchInput"),
+  searchResults: requireElement("searchResults"),
+  floorLevel: requireElement("floorLevel"),
+  floorHeightM: requireElement("floorHeightM"),
+  heightM: requireElement("heightM"),
+  fovDeg: requireElement("fovDeg"),
+  headingDeg: requireElement("headingDeg"),
+  pitchDeg: requireElement("pitchDeg"),
+  baseMap: requireElement("baseMap"),
+  debugPanel: requireElement("debugPanel"),
+  debugFogEnabled: requireElement("debugFogEnabled"),
+  debugDynamicSse: requireElement("debugDynamicSse"),
+  debugSkipLod: requireElement("debugSkipLod"),
+  debugFoveatedSse: requireElement("debugFoveatedSse"),
+  debugCullWithChildren: requireElement("debugCullWithChildren"),
+  debugCullWhileMoving: requireElement("debugCullWhileMoving"),
+  debugLoadSiblings: requireElement("debugLoadSiblings"),
+  debugMaxSse: requireElement("debugMaxSse"),
+  debugCullMultiplier: requireElement("debugCullMultiplier"),
+  panelToggleBtn: requireElement("panelToggleBtn"),
+  applyBtn: requireElement("applyBtn"),
+  copyBtn: requireElement("copyBtn"),
+  status: requireElement("status"),
 };
 
 function syncInputsFromState() {
-  ui.lat.value = state.lat;
-  ui.lng.value = state.lng;
+  ui.lat.value = String(state.lat);
+  ui.lng.value = String(state.lng);
   ui.floorLevel.value = state.floor_level.toFixed(2);
   ui.floorHeightM.value = state.floor_height_m.toFixed(2);
-  ui.heightM.value = state.height_m;
-  ui.fovDeg.value = state.fov_deg;
-  ui.headingDeg.value = state.heading_deg;
-  ui.pitchDeg.value = state.pitch_deg;
+  ui.heightM.value = String(state.height_m);
+  ui.fovDeg.value = String(state.fov_deg);
+  ui.headingDeg.value = String(state.heading_deg);
+  ui.pitchDeg.value = String(state.pitch_deg);
   ui.baseMap.value = state.base_map;
   syncDebugInputsFromState(ui, debugState, debugUiEnabled);
 }
@@ -113,7 +132,11 @@ function syncUrlToState() {
   window.history.replaceState({}, "", buildShareUrlFromState(state, window.location));
 }
 
-function setStatus(message, isError = false) {
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function setStatus(message: string, isError = false): void {
   ui.status.textContent = message;
   ui.status.style.color = isError ? "#b42318" : "#1f2937";
 }
@@ -123,7 +146,7 @@ function updateInputAngles() {
   ui.pitchDeg.value = state.pitch_deg.toFixed(1);
 }
 
-function syncFloorAndHeightFromInputs(mode) {
+function syncFloorAndHeightFromInputs(mode: FloorSyncMode): void {
   state.floor_height_m = sanitizeFloorHeight(ui.floorHeightM.value, DEFAULTS.floor_height_m);
   const floorLevelInput = Math.max(parseNumber(ui.floorLevel.value, state.floor_level), 0);
   const heightInput = clamp(parseNumber(ui.heightM.value, state.height_m), 1, 5000);
@@ -147,7 +170,7 @@ function syncFloorFromHeightInput() {
   syncFloorAndHeightFromInputs("height");
 }
 
-function handleLocationChanged() {
+function handleLocationChanged(): void {
   cameraController.applyFixedPose();
   syncUrlToState();
 }
@@ -181,8 +204,8 @@ async function initializeViewer() {
   viewer.scene.fog.density = 0.0002;
   viewer.scene.fog.screenSpaceErrorFactor = 2;
   viewer.scene.debugShowFramesPerSecond = false;
-  viewer.scene.renderError.addEventListener((scene, error) => {
-    setStatus(`Render error: ${error?.message || error}`, true);
+  viewer.scene.renderError.addEventListener((scene: unknown, error: unknown) => {
+    setStatus(`Render error: ${errorMessage(error)}`, true);
   });
   window.addEventListener("error", (event) => {
     if (event?.message) {
@@ -207,7 +230,7 @@ async function initializeViewer() {
     singaporeRectangle: SINGAPORE_RECTANGLE,
     debugState,
     applyDebugSettingsToTileset,
-    onTilesetLoaded: (nextTileset) => {
+    onTilesetLoaded: (nextTileset: Cesium3DTileset) => {
       tileset = nextTileset;
       window.__tileset = nextTileset;
     },
@@ -221,8 +244,8 @@ async function initializeViewer() {
     .then(() => {
       setStatus("Viewer ready.");
     })
-    .catch((error) => {
-      setStatus(`Failed loading OneMap tiles: ${error.message}`, true);
+    .catch((error: unknown) => {
+      setStatus(`Failed loading OneMap tiles: ${errorMessage(error)}`, true);
     });
 }
 
@@ -234,8 +257,8 @@ async function applyPoseFromForm() {
     cameraController.applyFixedPose();
     syncUrlToState();
     setStatus("Pose applied.");
-  } catch (error) {
-    setStatus(`Failed to apply pose: ${error.message}`, true);
+  } catch (error: unknown) {
+    setStatus(`Failed to apply pose: ${errorMessage(error)}`, true);
   }
 }
 
@@ -271,7 +294,7 @@ function bindUi() {
     ui,
     enabled: debugUiEnabled,
     debugState,
-    onChange: (controlId) => {
+    onChange: (controlId: DebugControlId) => {
       applyDebugSettingsLive({ viewer, tileset, debugState });
       console.log(`[debug] ${controlId} = ${getDebugValueByControlId(controlId, debugState)}`, {
         ...debugState,
@@ -287,7 +310,7 @@ async function bootstrap() {
     ui,
     state,
     singaporeBounds: SINGAPORE_BOUNDS,
-    isWithinSingapore: (lat, lng) => isWithinBounds(lat, lng, SG_LIMITS),
+    isWithinSingapore: (lat: number, lng: number) => isWithinBounds(lat, lng, SG_LIMITS),
     setStatus,
     onLocationChanged: handleLocationChanged,
   });
@@ -295,7 +318,7 @@ async function bootstrap() {
     ui,
     storageKey: PANEL_COLLAPSE_STORAGE_KEY,
     defaultCollapsed: isMobileClient,
-    onAfterToggle: (collapsed) => {
+    onAfterToggle: (collapsed: boolean) => {
       if (viewer) {
         viewer.scene.requestRender();
       }
@@ -311,8 +334,8 @@ async function bootstrap() {
   try {
     await initializeViewer();
     syncUrlToState();
-  } catch (error) {
-    setStatus(`Viewer failed to initialize: ${error.message}`, true);
+  } catch (error: unknown) {
+    setStatus(`Viewer failed to initialize: ${errorMessage(error)}`, true);
   }
 }
 

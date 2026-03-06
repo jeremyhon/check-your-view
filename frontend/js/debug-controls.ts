@@ -1,13 +1,32 @@
 import { clamp, parseNumber } from "./utils";
+import type { Cesium3DTileset, Viewer } from "cesium";
+import type { DebugControlId, DebugState, UiElements } from "./types";
 
-export function setDebugPanelVisibility(ui, enabled) {
+type DebugLiveApplyArgs = {
+  viewer: Viewer | null;
+  tileset?: Cesium3DTileset | null;
+  debugState: DebugState;
+};
+
+type DebugControlsBindOptions = {
+  ui: UiElements;
+  enabled: boolean;
+  debugState: DebugState;
+  onChange?: (controlId: DebugControlId) => void;
+};
+
+export function setDebugPanelVisibility(ui: UiElements, enabled: boolean): void {
   if (!ui.debugPanel) {
     return;
   }
   ui.debugPanel.hidden = !enabled;
 }
 
-export function syncDebugInputsFromState(ui, debugState, enabled) {
+export function syncDebugInputsFromState(
+  ui: UiElements,
+  debugState: DebugState,
+  enabled: boolean,
+): void {
   if (!enabled || !ui.debugFogEnabled) {
     return;
   }
@@ -22,7 +41,7 @@ export function syncDebugInputsFromState(ui, debugState, enabled) {
   ui.debugCullMultiplier.value = String(debugState.cullRequestsWhileMovingMultiplier);
 }
 
-export function readDebugStateFromInputs(ui, debugState) {
+export function readDebugStateFromInputs(ui: UiElements, debugState: DebugState): void {
   if (!ui.debugFogEnabled) {
     return;
   }
@@ -47,17 +66,23 @@ export function readDebugStateFromInputs(ui, debugState) {
   ui.debugCullMultiplier.value = String(debugState.cullRequestsWhileMovingMultiplier);
 }
 
-export function applyDebugSettingsToTileset(debugState, targetTileset) {
+export function applyDebugSettingsToTileset(
+  debugState: DebugState,
+  targetTileset?: Cesium3DTileset | null,
+): void {
   if (!targetTileset) {
     return;
   }
+  const tilesetWithInternalCulling = targetTileset as Cesium3DTileset & {
+    cullWithChildrenBounds?: boolean;
+  };
   targetTileset.dynamicScreenSpaceError = debugState.dynamicScreenSpaceError;
   targetTileset.maximumScreenSpaceError = debugState.maximumScreenSpaceError;
   targetTileset.skipLevelOfDetail = debugState.skipLevelOfDetail;
   targetTileset.baseScreenSpaceError = 1024;
   targetTileset.skipScreenSpaceErrorFactor = 16;
   targetTileset.skipLevels = 1;
-  targetTileset.cullWithChildrenBounds = debugState.cullWithChildrenBounds;
+  tilesetWithInternalCulling.cullWithChildrenBounds = debugState.cullWithChildrenBounds;
   targetTileset.cullRequestsWhileMoving = debugState.cullRequestsWhileMoving;
   targetTileset.cullRequestsWhileMovingMultiplier = debugState.cullRequestsWhileMovingMultiplier;
   targetTileset.foveatedScreenSpaceError = debugState.foveatedScreenSpaceError;
@@ -66,7 +91,7 @@ export function applyDebugSettingsToTileset(debugState, targetTileset) {
   targetTileset.preloadFlightDestinations = false;
 }
 
-export function applyDebugSettingsLive({ viewer, tileset, debugState }) {
+export function applyDebugSettingsLive({ viewer, tileset, debugState }: DebugLiveApplyArgs): void {
   if (!viewer) {
     return;
   }
@@ -75,7 +100,10 @@ export function applyDebugSettingsLive({ viewer, tileset, debugState }) {
   viewer.scene.requestRender();
 }
 
-export function getDebugValueByControlId(controlId, debugState) {
+export function getDebugValueByControlId(
+  controlId: DebugControlId,
+  debugState: DebugState,
+): boolean | number {
   const controlValueMap = {
     debugFogEnabled: debugState.fogEnabled,
     debugDynamicSse: debugState.dynamicScreenSpaceError,
@@ -90,11 +118,16 @@ export function getDebugValueByControlId(controlId, debugState) {
   return controlValueMap[controlId];
 }
 
-export function bindDebugControls({ ui, enabled, debugState, onChange }) {
+export function bindDebugControls({
+  ui,
+  enabled,
+  debugState,
+  onChange,
+}: DebugControlsBindOptions): void {
   if (!enabled) {
     return;
   }
-  const debugControls = [
+  const debugControls: HTMLInputElement[] = [
     ui.debugFogEnabled,
     ui.debugDynamicSse,
     ui.debugSkipLod,
@@ -104,13 +137,14 @@ export function bindDebugControls({ ui, enabled, debugState, onChange }) {
     ui.debugLoadSiblings,
     ui.debugMaxSse,
     ui.debugCullMultiplier,
-  ].filter(Boolean);
+  ];
   debugControls.forEach((control) => {
     const eventName = control.type === "number" ? "input" : "change";
     control.addEventListener(eventName, () => {
       readDebugStateFromInputs(ui, debugState);
       if (typeof onChange === "function") {
-        onChange(control.id, getDebugValueByControlId(control.id, debugState));
+        const controlId = control.id as DebugControlId;
+        onChange(controlId);
       }
     });
   });

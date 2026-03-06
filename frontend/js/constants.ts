@@ -1,3 +1,5 @@
+import type { BoundsLimits, DebugState, SingaporeBounds, ViewState } from "./types";
+
 const runtimeConfig = window.CHECK_YOUR_VIEW_CONFIG || {};
 
 export const defaultProxyBase = runtimeConfig.proxyBase || "http://localhost:8787";
@@ -18,19 +20,19 @@ export const SINGAPORE_RECTANGLE_DEGREES = {
   north: 1.5,
 };
 
-export const SINGAPORE_BOUNDS = [
+export const SINGAPORE_BOUNDS: SingaporeBounds = [
   [SINGAPORE_RECTANGLE_DEGREES.south, SINGAPORE_RECTANGLE_DEGREES.west],
   [SINGAPORE_RECTANGLE_DEGREES.north, SINGAPORE_RECTANGLE_DEGREES.east],
 ];
 
-export const SG_LIMITS = {
+export const SG_LIMITS: BoundsLimits = {
   minLat: SINGAPORE_RECTANGLE_DEGREES.south,
   maxLat: SINGAPORE_RECTANGLE_DEGREES.north,
   minLng: SINGAPORE_RECTANGLE_DEGREES.west,
   maxLng: SINGAPORE_RECTANGLE_DEGREES.east,
 };
 
-export const DEFAULTS = {
+export const DEFAULTS: ViewState = {
   proxy_base: defaultProxyBase,
   lat: 1.284048,
   lng: 103.860691,
@@ -43,7 +45,7 @@ export const DEFAULTS = {
   base_map: "OrthoJPG",
 };
 
-export const DEBUG_DEFAULTS = isLocalHost
+export const DEBUG_DEFAULTS: DebugState = isLocalHost
   ? {
       fogEnabled: false,
       dynamicScreenSpaceError: false,

@@ -1,33 +1,38 @@
 import { clamp, normalizeDeg, parseNumber } from "./utils";
+import type { BoundsLimits, LocationLike, ViewState } from "./types";
 
-export function sanitizeFloorHeight(value, defaultFloorHeight) {
+export function sanitizeFloorHeight(value: unknown, defaultFloorHeight: number): number {
   return clamp(parseNumber(value, defaultFloorHeight), 0.1, 10);
 }
 
-export function floorLevelFromHeight(height, floorHeight) {
+export function floorLevelFromHeight(height: number, floorHeight: number): number {
   const safeFloorHeight = Math.max(floorHeight, 0.1);
   return Math.max(height / safeFloorHeight, 0);
 }
 
-export function heightFromFloor(level, floorHeight) {
+export function heightFromFloor(level: number, floorHeight: number): number {
   return Math.max(level, 0) * Math.max(floorHeight, 0.1);
 }
 
-export function isWithinBounds(lat, lng, limits) {
+export function isWithinBounds(lat: number, lng: number, limits: BoundsLimits): boolean {
   return (
     lat >= limits.minLat && lat <= limits.maxLat && lng >= limits.minLng && lng <= limits.maxLng
   );
 }
 
-export function normalizeLegacyDegeneratePose(state, defaults) {
-  const nearZero = (value) => Math.abs(value) < 0.0001;
+export function normalizeLegacyDegeneratePose(state: ViewState, defaults: ViewState): void {
+  const nearZero = (value: number): boolean => Math.abs(value) < 0.0001;
   if (nearZero(state.heading_deg) && nearZero(state.pitch_deg) && state.fov_deg <= 20.1) {
     state.pitch_deg = defaults.pitch_deg;
     state.fov_deg = defaults.fov_deg;
   }
 }
 
-export function parseStateFromQuery(search, defaults, limits) {
+export function parseStateFromQuery(
+  search: string,
+  defaults: ViewState,
+  limits: BoundsLimits,
+): ViewState {
   const params = new URLSearchParams(search);
   const nextState = { ...defaults };
 
@@ -83,7 +88,7 @@ export function parseStateFromQuery(search, defaults, limits) {
   return nextState;
 }
 
-export function serializeStateToQuery(state) {
+export function serializeStateToQuery(state: ViewState): URLSearchParams {
   const params = new URLSearchParams();
   params.set("lat", state.lat.toFixed(6));
   params.set("lng", state.lng.toFixed(6));
@@ -97,7 +102,7 @@ export function serializeStateToQuery(state) {
   return params;
 }
 
-export function buildShareUrlFromState(state, locationLike) {
+export function buildShareUrlFromState(state: ViewState, locationLike: LocationLike): string {
   const params = serializeStateToQuery(state);
   return `${locationLike.origin}${locationLike.pathname}?${params.toString()}`;
 }

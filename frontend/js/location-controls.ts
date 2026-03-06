@@ -1,6 +1,24 @@
 /* global L */
 
 import { parseNumber } from "./utils";
+import type { LeafletMouseEvent, Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
+import type {
+  LocationController,
+  OneMapSearchPayload,
+  OneMapSearchResult,
+  SingaporeBounds,
+  UiElements,
+  ViewState,
+} from "./types";
+
+type LocationControllerOptions = {
+  ui: UiElements;
+  state: ViewState;
+  singaporeBounds: SingaporeBounds;
+  isWithinSingapore: (lat: number, lng: number) => boolean;
+  setStatus: (message: string, isError?: boolean) => void;
+  onLocationChanged?: () => void;
+};
 
 export function createLocationController({
   ui,
@@ -9,33 +27,33 @@ export function createLocationController({
   isWithinSingapore,
   setStatus,
   onLocationChanged,
-}) {
-  let miniMap;
-  let miniMarker;
-  let searchDebounceId = null;
-  let searchAbortController = null;
+}: LocationControllerOptions): LocationController {
+  let miniMap: LeafletMap | null = null;
+  let miniMarker: LeafletMarker | null = null;
+  let searchDebounceId: number | null = null;
+  let searchAbortController: AbortController | null = null;
 
-  function miniMapBaseUrl() {
+  function miniMapBaseUrl(): string {
     return `${state.proxy_base}/maps/tiles/DefaultRoad/{z}/{x}/{y}.png`;
   }
 
-  function syncMiniMapFromState(recenter = false) {
+  function syncMiniMapFromState(recenter = false): void {
     if (!miniMap || !miniMarker) {
       return;
     }
-    const center = [state.lat, state.lng];
+    const center: [number, number] = [state.lat, state.lng];
     miniMarker.setLatLng(center);
     if (recenter) {
       miniMap.setView(center, miniMap.getZoom(), { animate: false });
     }
   }
 
-  function clearSearchResults() {
+  function clearSearchResults(): void {
     ui.searchResults.innerHTML = "";
     ui.searchResults.classList.remove("visible");
   }
 
-  function updateLocation(lat, lng, message) {
+  function updateLocation(lat: number, lng: number, message: string): void {
     state.lat = lat;
     state.lng = lng;
     ui.lat.value = lat.toFixed(6);
@@ -47,11 +65,11 @@ export function createLocationController({
     setStatus(message);
   }
 
-  function updateLocationFromMiniMap(lat, lng) {
+  function updateLocationFromMiniMap(lat: number, lng: number): void {
     updateLocation(lat, lng, "Location updated from mini map.");
   }
 
-  function initializeMiniMap() {
+  function initializeMiniMap(): void {
     if (typeof L === "undefined" || !ui.miniMap) {
       setStatus("Mini map failed to load.", true);
       return;
@@ -74,21 +92,28 @@ export function createLocationController({
     miniMap.setView([state.lat, state.lng], 15);
     miniMarker = L.marker([state.lat, state.lng], { draggable: true }).addTo(miniMap);
 
-    miniMap.on("click", (event) => {
+    miniMap.on("click", (event: LeafletMouseEvent) => {
+      if (!miniMarker) {
+        return;
+      }
       const { lat, lng } = event.latlng;
       miniMarker.setLatLng([lat, lng]);
       updateLocationFromMiniMap(lat, lng);
     });
 
     miniMarker.on("dragend", () => {
+      if (!miniMarker) {
+        return;
+      }
       const { lat, lng } = miniMarker.getLatLng();
       updateLocationFromMiniMap(lat, lng);
     });
 
-    window.setTimeout(() => miniMap.invalidateSize(), 0);
+    const currentMiniMap = miniMap;
+    window.setTimeout(() => currentMiniMap.invalidateSize(), 0);
   }
 
-  function handleSearchSelect(result) {
+  function handleSearchSelect(result: OneMapSearchResult): void {
     const lat = parseNumber(result.LATITUDE, state.lat);
     const lng = parseNumber(result.LONGITUDE, state.lng);
     if (!isWithinSingapore(lat, lng)) {
@@ -101,7 +126,7 @@ export function createLocationController({
     updateLocation(lat, lng, `Moved to: ${label}`);
   }
 
-  function renderSearchResults(results) {
+  function renderSearchResults(results: OneMapSearchResult[]): void {
     ui.searchResults.innerHTML = "";
     if (results.length === 0) {
       const empty = document.createElement("button");
@@ -127,7 +152,7 @@ export function createLocationController({
     ui.searchResults.classList.add("visible");
   }
 
-  async function runLocationSearch(query) {
+  async function runLocationSearch(query: string): Promise<void> {
     if (query.length < 2) {
       clearSearchResults();
       return;
@@ -144,21 +169,26 @@ export function createLocationController({
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
-      const payload = await response.json();
+      const payload = (await response.json()) as OneMapSearchPayload;
       const results = Array.isArray(payload.results) ? payload.results : [];
       renderSearchResults(results);
-    } catch (error) {
-      if (error.name === "AbortError") {
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === "AbortError") {
         return;
       }
       clearSearchResults();
-      setStatus(`Search failed: ${error.message}`, true);
+      const message = error instanceof Error ? error.message : String(error);
+      setStatus(`Search failed: ${message}`, true);
     }
   }
 
-  function bindSearchControls() {
-    ui.searchInput.addEventListener("input", (event) => {
-      const query = event.target.value.trim();
+  function bindSearchControls(): void {
+    ui.searchInput.addEventListener("input", (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) {
+        return;
+      }
+      const query = target.value.trim();
       if (searchDebounceId) {
         window.clearTimeout(searchDebounceId);
       }
@@ -166,26 +196,26 @@ export function createLocationController({
         void runLocationSearch(query);
       }, 250);
     });
-    ui.searchInput.addEventListener("keydown", (event) => {
+    ui.searchInput.addEventListener("keydown", (event: KeyboardEvent) => {
       if (event.key !== "Enter") {
         return;
       }
       const first = ui.searchResults.querySelector(".search-result-item:not([disabled])");
-      if (first) {
+      if (first instanceof HTMLButtonElement) {
         first.click();
         event.preventDefault();
       }
     });
-    document.addEventListener("click", (event) => {
-      const target = event.target;
-      if (target === ui.searchInput || ui.searchResults.contains(target)) {
+    document.addEventListener("click", (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (target && (target === ui.searchInput || ui.searchResults.contains(target))) {
         return;
       }
       clearSearchResults();
     });
   }
 
-  function invalidateMiniMap() {
+  function invalidateMiniMap(): void {
     if (miniMap) {
       miniMap.invalidateSize();
     }

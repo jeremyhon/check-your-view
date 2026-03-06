@@ -1,5 +1,20 @@
 /* global Cesium */
 
+import type { Cesium3DTileset, Rectangle, Viewer } from "cesium";
+import type { DebugState, SceneDataController, ViewState } from "./types";
+
+type SceneDataControllerOptions = {
+  viewer: Viewer;
+  state: ViewState;
+  singaporeRectangle: Rectangle;
+  debugState: DebugState;
+  applyDebugSettingsToTileset: (
+    debugState: DebugState,
+    targetTileset?: Cesium3DTileset | null,
+  ) => void;
+  onTilesetLoaded?: (tileset: Cesium3DTileset) => void;
+};
+
 export function createSceneDataController({
   viewer,
   state,
@@ -7,15 +22,15 @@ export function createSceneDataController({
   debugState,
   applyDebugSettingsToTileset,
   onTilesetLoaded,
-}) {
-  let tileset;
+}: SceneDataControllerOptions): SceneDataController {
+  let tileset: Cesium3DTileset | undefined;
   let loadedDataKey = "";
 
-  function baseMapUrl() {
+  function baseMapUrl(): string {
     return `${state.proxy_base}/maps/tiles/${state.base_map}/{z}/{x}/{y}.png`;
   }
 
-  function refreshBasemapLayer() {
+  function refreshBasemapLayer(): void {
     viewer.imageryLayers.removeAll(true);
     const provider = new Cesium.UrlTemplateImageryProvider({
       url: baseMapUrl(),
@@ -27,7 +42,7 @@ export function createSceneDataController({
     viewer.imageryLayers.addImageryProvider(provider);
   }
 
-  async function loadTileset() {
+  async function loadTileset(): Promise<void> {
     if (tileset) {
       viewer.scene.primitives.remove(tileset);
     }
@@ -40,7 +55,7 @@ export function createSceneDataController({
     }
   }
 
-  async function ensureSceneDataLoaded(force = false) {
+  async function ensureSceneDataLoaded(force = false): Promise<void> {
     const dataKey = `${state.proxy_base}|${state.base_map}`;
     if (!force && dataKey === loadedDataKey && tileset) {
       return;

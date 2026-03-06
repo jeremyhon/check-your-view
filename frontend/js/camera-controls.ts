@@ -1,6 +1,16 @@
 /* global Cesium */
 
 import { clamp, normalizeDeg } from "./utils";
+import type { Viewer } from "cesium";
+import type { CameraController, ViewState } from "./types";
+
+type CameraControllerOptions = {
+  viewer: Viewer;
+  state: ViewState;
+  cameraFarMeters: number;
+  onPoseChanged?: () => void;
+  onOrientationInputUpdate?: () => void;
+};
 
 export function createCameraController({
   viewer,
@@ -8,13 +18,13 @@ export function createCameraController({
   cameraFarMeters,
   onPoseChanged,
   onOrientationInputUpdate,
-}) {
-  let activePointerId = null;
+}: CameraControllerOptions): CameraController {
+  let activePointerId: number | null = null;
   let dragging = false;
   let lastX = 0;
   let lastY = 0;
 
-  function applyFixedPose() {
+  function applyFixedPose(): void {
     const fixedPosition = Cesium.Cartesian3.fromDegrees(state.lng, state.lat, state.height_m);
     viewer.camera.setView({
       destination: fixedPosition,
@@ -24,12 +34,15 @@ export function createCameraController({
         roll: 0,
       },
     });
-    viewer.camera.frustum.fov = Cesium.Math.toRadians(state.fov_deg);
+    const frustum = viewer.camera.frustum;
+    if ("fov" in frustum) {
+      frustum.fov = Cesium.Math.toRadians(state.fov_deg);
+    }
     viewer.camera.frustum.near = 0.2;
     viewer.camera.frustum.far = cameraFarMeters;
   }
 
-  function lockPositionControls() {
+  function lockPositionControls(): void {
     const controls = viewer.scene.screenSpaceCameraController;
     controls.enableInputs = false;
     controls.enableTranslate = false;
@@ -39,11 +52,11 @@ export function createCameraController({
     controls.enableLook = false;
   }
 
-  function installOrientationDrag() {
+  function installOrientationDrag(): void {
     const canvas = viewer.scene.canvas;
     canvas.style.cursor = "grab";
 
-    canvas.addEventListener("pointerdown", (event) => {
+    canvas.addEventListener("pointerdown", (event: PointerEvent) => {
       // Primary drag input for mouse/touch/pen.
       if (event.pointerType === "mouse" && event.button > 2) {
         return;
@@ -61,7 +74,7 @@ export function createCameraController({
       event.preventDefault();
     });
 
-    canvas.addEventListener("pointermove", (event) => {
+    canvas.addEventListener("pointermove", (event: PointerEvent) => {
       if (!dragging || event.pointerId !== activePointerId) {
         return;
       }
@@ -82,7 +95,7 @@ export function createCameraController({
       event.preventDefault();
     });
 
-    const endDrag = (event) => {
+    const endDrag = (event: PointerEvent) => {
       if (event.pointerId !== activePointerId) {
         return;
       }
@@ -94,7 +107,7 @@ export function createCameraController({
 
     canvas.addEventListener("pointerup", endDrag);
     canvas.addEventListener("pointercancel", endDrag);
-    canvas.addEventListener("contextmenu", (event) => event.preventDefault());
+    canvas.addEventListener("contextmenu", (event: MouseEvent) => event.preventDefault());
   }
 
   return {
