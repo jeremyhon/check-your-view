@@ -31,6 +31,7 @@ import {
   sanitizeFloorHeight,
 } from "./js/pose-state.js";
 import { createCameraController } from "./js/camera-controls.js";
+import { createSceneDataController } from "./js/scene-data.js";
 const SINGAPORE_RECTANGLE = Cesium.Rectangle.fromDegrees(
   SINGAPORE_RECTANGLE_DEGREES.west,
   SINGAPORE_RECTANGLE_DEGREES.south,
@@ -42,10 +43,10 @@ const state = { ...DEFAULTS };
 const debugState = { ...DEBUG_DEFAULTS };
 let viewer;
 let tileset;
-let loadedDataKey = "";
 let panelController;
 let locationController;
 let cameraController;
+let sceneDataController;
 
 const $ = (id) => document.getElementById(id);
 
@@ -144,47 +145,9 @@ function syncFloorFromHeightInput() {
   syncFloorAndHeightFromInputs("height");
 }
 
-function baseMapUrl() {
-  return `${state.proxy_base}/maps/tiles/${state.base_map}/{z}/{x}/{y}.png`;
-}
-
 function handleLocationChanged() {
   cameraController.applyFixedPose();
   syncUrlToState();
-}
-
-function refreshBasemapLayer() {
-  viewer.imageryLayers.removeAll(true);
-  const provider = new Cesium.UrlTemplateImageryProvider({
-    url: baseMapUrl(),
-    rectangle: SINGAPORE_RECTANGLE,
-    minimumLevel: 11,
-    maximumLevel: 19,
-    credit: "OneMap",
-  });
-  viewer.imageryLayers.addImageryProvider(provider);
-}
-
-async function loadTileset() {
-  if (tileset) {
-    viewer.scene.primitives.remove(tileset);
-  }
-  const url = `${state.proxy_base}/omapi/tilesets/sg_noterrain_tiles/tileset.json`;
-  tileset = await Cesium.Cesium3DTileset.fromUrl(url);
-  applyDebugSettingsToTileset(debugState, tileset);
-  viewer.scene.primitives.add(tileset);
-  window.__tileset = tileset;
-}
-
-async function ensureSceneDataLoaded(force = false) {
-  const dataKey = `${state.proxy_base}|${state.base_map}`;
-  if (!force && dataKey === loadedDataKey && tileset) {
-    return;
-  }
-
-  refreshBasemapLayer();
-  await loadTileset();
-  loadedDataKey = dataKey;
 }
 
 async function initializeViewer() {
@@ -235,11 +198,24 @@ async function initializeViewer() {
   cameraController.lockPositionControls();
   cameraController.installOrientationDrag();
   cameraController.applyFixedPose();
+
+  sceneDataController = createSceneDataController({
+    viewer,
+    state,
+    singaporeRectangle: SINGAPORE_RECTANGLE,
+    debugState,
+    applyDebugSettingsToTileset,
+    onTilesetLoaded: (nextTileset) => {
+      tileset = nextTileset;
+      window.__tileset = nextTileset;
+    },
+  });
   locationController.initializeMiniMap();
 
   // Avoid blank startup while heavy 3D tiles are loading.
   setStatus("Loading OneMap tiles...");
-  void ensureSceneDataLoaded(true)
+  void sceneDataController
+    .ensureSceneDataLoaded(true)
     .then(() => {
       setStatus("Viewer ready.");
     })
@@ -251,7 +227,7 @@ async function initializeViewer() {
 async function applyPoseFromForm() {
   try {
     readStateFromInputs();
-    await ensureSceneDataLoaded();
+    await sceneDataController.ensureSceneDataLoaded();
     locationController.syncMiniMapFromState(true);
     cameraController.applyFixedPose();
     syncUrlToState();
