@@ -125,6 +125,113 @@ function isSearchPath(pathname) {
   return pathname.startsWith("/api/common/elastic/search");
 }
 
+function isImageryPath(pathname) {
+  return pathname.startsWith("/maps/tiles/");
+}
+
+function buildUpstreamUrl(env, url) {
+  return `${env.ONEMAP_BASE_URL}${url.pathname}${url.search}`;
+}
+
+function buildUpstreamHeaders(request, pathname, env) {
+  const headers = new Headers();
+  const forwardableHeaders = ["accept", "range", "if-modified-since", "if-none-match"];
+  forwardableHeaders.forEach((name) => {
+    const value = request.headers.get(name);
+    if (value) {
+      headers.set(name, value);
+    }
+  });
+
+  headers.set("Referer", env.ONEMAP_REFERER);
+  if (isSearchPath(pathname) && env.ONEMAP_API_TOKEN) {
+    headers.set("Authorization", env.ONEMAP_API_TOKEN);
+  }
+  return headers;
+}
+
+async function fetchUpstream(request, upstreamUrl, upstreamHeaders) {
+  return fetch(upstreamUrl, {
+    method: request.method,
+    headers: upstreamHeaders,
+    redirect: "follow",
+    cf: {
+      cacheEverything: true,
+      cacheTtlByStatus: {
+        "200-299": 3600,
+        404: 60,
+        "500-599": 0,
+      },
+    },
+  });
+}
+
+async function handleImageryRoute(request, env, url, corsHeaders) {
+  const upstreamUrl = buildUpstreamUrl(env, url);
+  const upstreamHeaders = buildUpstreamHeaders(request, url.pathname, env);
+  let upstreamResponse;
+  try {
+    upstreamResponse = await fetchUpstream(request, upstreamUrl, upstreamHeaders);
+  } catch {
+    return createTransparentTileResponse(request.method, corsHeaders);
+  }
+
+  const responseHeaders = copyResponseHeaders(upstreamResponse.headers, corsHeaders, url.pathname);
+  if (!upstreamResponse.ok) {
+    return createTransparentTileResponse(request.method, corsHeaders);
+  }
+  if (request.method === "GET") {
+    if (!upstreamResponse.body) {
+      return createTransparentTileResponse(request.method, corsHeaders);
+    }
+    // Probe for truly empty chunked bodies without buffering whole tiles.
+    const [probeStream, passthroughStream] = upstreamResponse.body.tee();
+    const reader = probeStream.getReader();
+    const firstChunk = await reader.read();
+    try {
+      await reader.cancel();
+    } catch {
+      // ignore reader cancel failures
+    }
+    if (firstChunk.done) {
+      return createTransparentTileResponse(request.method, corsHeaders);
+    }
+    return new Response(passthroughStream, {
+      status: upstreamResponse.status,
+      statusText: upstreamResponse.statusText,
+      headers: responseHeaders,
+    });
+  }
+
+  return new Response(upstreamResponse.body, {
+    status: upstreamResponse.status,
+    statusText: upstreamResponse.statusText,
+    headers: responseHeaders,
+  });
+}
+
+async function handleProxyRoute(request, env, url, corsHeaders) {
+  const upstreamUrl = buildUpstreamUrl(env, url);
+  const upstreamHeaders = buildUpstreamHeaders(request, url.pathname, env);
+  let upstreamResponse;
+  try {
+    upstreamResponse = await fetchUpstream(request, upstreamUrl, upstreamHeaders);
+  } catch (error) {
+    return createJsonResponse(
+      502,
+      { error: "Upstream fetch failed", detail: String(error) },
+      corsHeaders,
+    );
+  }
+
+  const responseHeaders = copyResponseHeaders(upstreamResponse.headers, corsHeaders, url.pathname);
+  return new Response(upstreamResponse.body, {
+    status: upstreamResponse.status,
+    statusText: upstreamResponse.statusText,
+    headers: responseHeaders,
+  });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -153,87 +260,10 @@ export default {
       return createJsonResponse(404, { error: "Path not allowed." }, corsHeaders);
     }
 
-    const upstreamUrl = `${env.ONEMAP_BASE_URL}${url.pathname}${url.search}`;
-    const upstreamHeaders = new Headers();
-
-    const forwardableHeaders = ["accept", "range", "if-modified-since", "if-none-match"];
-    forwardableHeaders.forEach((name) => {
-      const value = request.headers.get(name);
-      if (value) {
-        upstreamHeaders.set(name, value);
-      }
-    });
-
-    upstreamHeaders.set("Referer", env.ONEMAP_REFERER);
-    if (isSearchPath(url.pathname) && env.ONEMAP_API_TOKEN) {
-      upstreamHeaders.set("Authorization", env.ONEMAP_API_TOKEN);
+    if (isImageryPath(url.pathname)) {
+      return handleImageryRoute(request, env, url, corsHeaders);
     }
 
-    const isImageryPath = url.pathname.startsWith("/maps/tiles/");
-    let upstreamResponse;
-    try {
-      upstreamResponse = await fetch(upstreamUrl, {
-        method: request.method,
-        headers: upstreamHeaders,
-        redirect: "follow",
-        cf: {
-          cacheEverything: true,
-          cacheTtlByStatus: {
-            "200-299": 3600,
-            404: 60,
-            "500-599": 0,
-          },
-        },
-      });
-    } catch (error) {
-      if (isImageryPath) {
-        return createTransparentTileResponse(request.method, corsHeaders);
-      }
-      return createJsonResponse(
-        502,
-        { error: "Upstream fetch failed", detail: String(error) },
-        corsHeaders,
-      );
-    }
-
-    const responseHeaders = copyResponseHeaders(
-      upstreamResponse.headers,
-      corsHeaders,
-      url.pathname,
-    );
-
-    if (isImageryPath) {
-      if (!upstreamResponse.ok) {
-        return createTransparentTileResponse(request.method, corsHeaders);
-      }
-      if (request.method === "GET") {
-        if (!upstreamResponse.body) {
-          return createTransparentTileResponse(request.method, corsHeaders);
-        }
-        // Probe for truly empty chunked bodies without buffering whole tiles.
-        const [probeStream, passthroughStream] = upstreamResponse.body.tee();
-        const reader = probeStream.getReader();
-        const firstChunk = await reader.read();
-        try {
-          await reader.cancel();
-        } catch {
-          // ignore reader cancel failures
-        }
-        if (firstChunk.done) {
-          return createTransparentTileResponse(request.method, corsHeaders);
-        }
-        return new Response(passthroughStream, {
-          status: upstreamResponse.status,
-          statusText: upstreamResponse.statusText,
-          headers: responseHeaders,
-        });
-      }
-    }
-
-    return new Response(upstreamResponse.body, {
-      status: upstreamResponse.status,
-      statusText: upstreamResponse.statusText,
-      headers: responseHeaders,
-    });
+    return handleProxyRoute(request, env, url, corsHeaders);
   },
 };
