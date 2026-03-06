@@ -1,6 +1,8 @@
 /* global Cesium */
 
-import { clamp, normalizeDeg, parseNumber } from "./js/utils.js";
+import "./config";
+
+import { clamp, normalizeDeg, parseNumber } from "./js/utils";
 import {
   applyDebugSettingsLive,
   applyDebugSettingsToTileset,
@@ -8,7 +10,7 @@ import {
   getDebugValueByControlId,
   setDebugPanelVisibility,
   syncDebugInputsFromState,
-} from "./js/debug-controls.js";
+} from "./js/debug-controls";
 import {
   CAMERA_FAR_METERS,
   DEBUG_DEFAULTS,
@@ -19,9 +21,9 @@ import {
   SINGAPORE_RECTANGLE_DEGREES,
   debugUiEnabled,
   isMobileClient,
-} from "./js/constants.js";
-import { createLocationController } from "./js/location-controls.js";
-import { createPanelController, setMiniMapInstructionText } from "./js/panel-controls.js";
+} from "./js/constants";
+import { createLocationController } from "./js/location-controls";
+import { createPanelController, setMiniMapInstructionText } from "./js/panel-controls";
 import {
   buildShareUrlFromState,
   floorLevelFromHeight,
@@ -29,9 +31,9 @@ import {
   isWithinBounds,
   parseStateFromQuery,
   sanitizeFloorHeight,
-} from "./js/pose-state.js";
-import { createCameraController } from "./js/camera-controls.js";
-import { createSceneDataController } from "./js/scene-data.js";
+} from "./js/pose-state";
+import { createCameraController } from "./js/camera-controls";
+import { createSceneDataController } from "./js/scene-data";
 const SINGAPORE_RECTANGLE = Cesium.Rectangle.fromDegrees(
   SINGAPORE_RECTANGLE_DEGREES.west,
   SINGAPORE_RECTANGLE_DEGREES.south,
@@ -48,7 +50,7 @@ let locationController;
 let cameraController;
 let sceneDataController;
 
-const $ = (id) => document.getElementById(id);
+const $ = (id: string): any => document.getElementById(id);
 
 const ui = {
   miniMap: $("miniMap"),

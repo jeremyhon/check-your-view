@@ -6,12 +6,15 @@
   "license": "ISC",
   "author": "",
   "type": "module",
-  "main": "worker/src/index.js",
+  "main": "worker/src/index.ts",
   "scripts": {
     "viewer:dev": "vite frontend --host --port 5173 --strictPort",
+    "viewer:build": "vite build frontend --outDir dist --emptyOutDir",
     "dev": "concurrently -k -n CLIENT,PROXY \"pnpm run viewer:dev\" \"pnpm run worker:dev\"",
     "worker:dev": "wrangler dev --config worker/wrangler.toml --port 8787",
     "worker:deploy": "wrangler deploy --config worker/wrangler.toml",
+    "typecheck": "tsgo -p tsconfig.frontend.json --noEmit && tsgo -p tsconfig.worker.json --noEmit",
+    "build": "pnpm run typecheck && pnpm run viewer:build",
     "deploy": "bash scripts/deploy.sh",
     "deploy:sync-secrets": "bash scripts/deploy.sh --sync-secrets",
     "lint": "oxlint frontend worker scripts",
@@ -24,11 +27,14 @@
     "cesium": "^1.139.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260305.1",
+    "@types/leaflet": "^1.9.21",
+    "@typescript/native-preview": "7.0.0-dev.20260305.1",
     "concurrently": "^9.2.1",
     "husky": "^9.1.7",
     "oxfmt": "^0.36.0",
     "oxlint": "^1.51.0",
-    "serve": "^14.2.6",
+    "typescript": "^5.9.3",
     "vite": "^7.1.12",
     "wrangler": "^4.70.0"
   },

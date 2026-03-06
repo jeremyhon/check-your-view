@@ -84,7 +84,7 @@ wrangler deploy --config worker/wrangler.toml --var ALLOWED_ORIGINS=https://chec
 
 ## Frontend Runtime Config
 
-Frontend proxy base is controlled by `frontend/config.js`:
+Frontend proxy base is controlled by `frontend/config.ts`:
 
 ```js
 window.CHECK_YOUR_VIEW_CONFIG = {
@@ -94,6 +94,23 @@ window.CHECK_YOUR_VIEW_CONFIG = {
 
 For local dev it defaults to `http://localhost:8787`.
 
+## TypeScript Tooling
+
+- Source code is TypeScript across frontend and worker.
+- Type checking uses `tsgo` from `@typescript/native-preview` (not `tsc`).
+
+Run type checks:
+
+```bash
+pnpm run typecheck
+```
+
+Build frontend assets:
+
+```bash
+pnpm run build
+```
+
 ## Manual Deploy Script
 
 Deploy both Worker and Pages in one command:
@@ -101,6 +118,8 @@ Deploy both Worker and Pages in one command:
 ```bash
 pnpm run deploy
 ```
+
+This deploy path now type-checks/builds frontend TypeScript and deploys `frontend/dist`.
 
 Sync ONEMAP secret explicitly (only when needed):
 

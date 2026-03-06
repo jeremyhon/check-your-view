@@ -1,4 +1,4 @@
-import { clamp, normalizeDeg, parseNumber } from "./utils.js";
+import { clamp, normalizeDeg, parseNumber } from "./utils";
 
 export function sanitizeFloorHeight(value, defaultFloorHeight) {
   return clamp(parseNumber(value, defaultFloorHeight), 0.1, 10);

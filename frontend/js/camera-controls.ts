@@ -1,6 +1,6 @@
 /* global Cesium */
 
-import { clamp, normalizeDeg } from "./utils.js";
+import { clamp, normalizeDeg } from "./utils";
 
 export function createCameraController({
   viewer,

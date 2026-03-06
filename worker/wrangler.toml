@@ -1,5 +1,5 @@
 name = "check-your-view-proxy"
-main = "src/index.js"
+main = "src/index.ts"
 compatibility_date = "2025-12-01"
 
 [vars]

@@ -7,8 +7,16 @@ const ALLOWED_PREFIXES = [
 
 const ALLOWED_METHODS = "GET,HEAD,OPTIONS";
 const ALLOWED_HEADERS = "Content-Type,Authorization,Range,If-Modified-Since,If-None-Match";
+type CorsHeaders = Record<string, string>;
 const TRANSPARENT_PIXEL_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=";
+
+type Env = {
+  ONEMAP_BASE_URL: string;
+  ONEMAP_REFERER: string;
+  ALLOWED_ORIGINS?: string;
+  ONEMAP_API_TOKEN?: string;
+};
 
 function base64ToUint8Array(base64) {
   const binary = atob(base64);
@@ -28,7 +36,7 @@ function isAllowedPath(pathname) {
   return ALLOWED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }
 
-function resolveOrigin(request, env) {
+function resolveOrigin(request: Request, env: Env): string | null {
   const requestOrigin = request.headers.get("Origin");
   const configured = (env.ALLOWED_ORIGINS || "*").trim();
   if (configured === "*") {
@@ -44,7 +52,7 @@ function resolveOrigin(request, env) {
   return allowlist.includes(requestOrigin) ? requestOrigin : null;
 }
 
-function buildCorsHeaders(request, env) {
+function buildCorsHeaders(request: Request, env: Env): CorsHeaders | null {
   const origin = resolveOrigin(request, env);
   if (!origin) {
     return null;
@@ -58,7 +66,11 @@ function buildCorsHeaders(request, env) {
   };
 }
 
-function createJsonResponse(status, payload, corsHeaders) {
+function createJsonResponse(
+  status: number,
+  payload: unknown,
+  corsHeaders: CorsHeaders | null,
+): Response {
   const headers = new Headers({
     "Content-Type": "application/json; charset=utf-8",
   });
@@ -68,7 +80,10 @@ function createJsonResponse(status, payload, corsHeaders) {
   return new Response(JSON.stringify(payload), { status, headers });
 }
 
-function createTransparentTileResponse(requestMethod, corsHeaders) {
+function createTransparentTileResponse(
+  requestMethod: string,
+  corsHeaders: CorsHeaders | null,
+): Response {
   const headers = new Headers({
     "Content-Type": "image/png",
     "Cache-Control": "public, max-age=300",
@@ -92,7 +107,11 @@ function normalizeContentType(pathname, upstreamContentType) {
   return upstreamContentType;
 }
 
-function copyResponseHeaders(upstreamHeaders, corsHeaders, pathname) {
+function copyResponseHeaders(
+  upstreamHeaders: Headers,
+  corsHeaders: CorsHeaders | null,
+  pathname: string,
+): Headers {
   const passthrough = [
     "content-type",
     "cache-control",
@@ -129,11 +148,11 @@ function isImageryPath(pathname) {
   return pathname.startsWith("/maps/tiles/");
 }
 
-function buildUpstreamUrl(env, url) {
+function buildUpstreamUrl(env: Env, url: URL): string {
   return `${env.ONEMAP_BASE_URL}${url.pathname}${url.search}`;
 }
 
-function buildUpstreamHeaders(request, pathname, env) {
+function buildUpstreamHeaders(request: Request, pathname: string, env: Env): Headers {
   const headers = new Headers();
   const forwardableHeaders = ["accept", "range", "if-modified-since", "if-none-match"];
   forwardableHeaders.forEach((name) => {
@@ -150,7 +169,11 @@ function buildUpstreamHeaders(request, pathname, env) {
   return headers;
 }
 
-async function fetchUpstream(request, upstreamUrl, upstreamHeaders) {
+async function fetchUpstream(
+  request: Request,
+  upstreamUrl: string,
+  upstreamHeaders: Headers,
+): Promise<Response> {
   return fetch(upstreamUrl, {
     method: request.method,
     headers: upstreamHeaders,
@@ -166,7 +189,12 @@ async function fetchUpstream(request, upstreamUrl, upstreamHeaders) {
   });
 }
 
-async function handleImageryRoute(request, env, url, corsHeaders) {
+async function handleImageryRoute(
+  request: Request,
+  env: Env,
+  url: URL,
+  corsHeaders: CorsHeaders | null,
+): Promise<Response> {
   const upstreamUrl = buildUpstreamUrl(env, url);
   const upstreamHeaders = buildUpstreamHeaders(request, url.pathname, env);
   let upstreamResponse;
@@ -210,7 +238,12 @@ async function handleImageryRoute(request, env, url, corsHeaders) {
   });
 }
 
-async function handleProxyRoute(request, env, url, corsHeaders) {
+async function handleProxyRoute(
+  request: Request,
+  env: Env,
+  url: URL,
+  corsHeaders: CorsHeaders | null,
+): Promise<Response> {
   const upstreamUrl = buildUpstreamUrl(env, url);
   const upstreamHeaders = buildUpstreamHeaders(request, url.pathname, env);
   let upstreamResponse;
@@ -233,7 +266,7 @@ async function handleProxyRoute(request, env, url, corsHeaders) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const corsHeaders = buildCorsHeaders(request, env);
 

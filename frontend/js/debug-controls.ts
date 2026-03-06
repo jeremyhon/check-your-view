@@ -1,4 +1,4 @@
-import { clamp, parseNumber } from "./utils.js";
+import { clamp, parseNumber } from "./utils";
 
 export function setDebugPanelVisibility(ui, enabled) {
   if (!ui.debugPanel) {

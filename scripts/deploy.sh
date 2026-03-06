@@ -60,7 +60,10 @@ fi
 echo "Deploying Worker..."
 pnpm run worker:deploy
 
+echo "Building frontend (TypeScript -> browser assets)..."
+pnpm run build
+
 echo "Deploying Pages..."
-pnpm exec wrangler pages deploy frontend --project-name check-your-view
+pnpm exec wrangler pages deploy frontend/dist --project-name check-your-view
 
 echo "Deploy complete."

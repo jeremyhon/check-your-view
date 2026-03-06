@@ -1,6 +1,6 @@
 /* global L */
 
-import { parseNumber } from "./utils.js";
+import { parseNumber } from "./utils";
 
 export function createLocationController({
   ui,
