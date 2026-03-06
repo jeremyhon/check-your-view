@@ -17,6 +17,7 @@
     "build": "pnpm run typecheck && pnpm run viewer:build",
     "deploy": "bash scripts/deploy.sh",
     "deploy:sync-secrets": "bash scripts/deploy.sh --sync-secrets",
+    "smoke:test": "bash scripts/smoke-test.sh",
     "lint": "oxlint frontend worker scripts",
     "lint:fix": "oxlint frontend worker scripts --fix",
     "format": "oxfmt --check .",

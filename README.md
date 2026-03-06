@@ -153,6 +153,30 @@ Requirements:
 
 Script path: `scripts/deploy.sh`
 
+## Repeatable Smoke Test
+
+Run production smoke checks:
+
+```bash
+pnpm run smoke:test
+```
+
+The script validates:
+
+- Pages root HTML and expected title/subtitle
+- frontend bundle asset reachable from current `index.html`
+- Worker tileset endpoint
+- Worker imagery tile endpoint
+- Worker search endpoint
+
+Optional overrides:
+
+```bash
+SITE_URL="https://<pages-domain>" \
+PROXY_URL="https://<worker-domain>" \
+pnpm run smoke:test
+```
+
 ## Linting And Formatting
 
 Run lint checks:
