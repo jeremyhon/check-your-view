@@ -23,7 +23,7 @@ OneMap 3D tileset access is referer-gated. Browser code cannot set arbitrary `Re
 1. Install dependencies:
 
 ```bash
-npm install
+pnpm install
 ```
 
 2. Configure local Worker secrets:
@@ -36,7 +36,7 @@ cp worker/.dev.vars.example worker/.dev.vars
 3. Run both frontend + worker in one command (hot reload enabled):
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 4. Open viewer:
@@ -51,14 +51,14 @@ This uses fixed dev ports:
 5. Deploy Worker:
 
 ```bash
-npm run worker:deploy
+pnpm run worker:deploy
 ```
 
 Optional: run services separately:
 
 ```bash
-npm run viewer:dev
-npm run worker:dev
+pnpm run viewer:dev
+pnpm run worker:dev
 ```
 
 ## Worker Config
@@ -99,13 +99,13 @@ For local dev it defaults to `http://localhost:8787`.
 Deploy both Worker and Pages in one command:
 
 ```bash
-npm run deploy
+pnpm run deploy
 ```
 
 Sync ONEMAP secret explicitly (only when needed):
 
 ```bash
-npm run deploy:sync-secrets
+pnpm run deploy:sync-secrets
 ```
 
 Requirements:
@@ -121,25 +121,25 @@ Script path: `scripts/deploy.sh`
 Run lint checks:
 
 ```bash
-npm run lint
+pnpm run lint
 ```
 
 Fix lint issues automatically where possible:
 
 ```bash
-npm run lint:fix
+pnpm run lint:fix
 ```
 
 Check formatting:
 
 ```bash
-npm run format
+pnpm run format
 ```
 
 Apply formatting:
 
 ```bash
-npm run format:fix
+pnpm run format:fix
 ```
 
 ## Planned View URL Schema (Frontend)

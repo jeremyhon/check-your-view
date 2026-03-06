@@ -52,15 +52,15 @@ if [[ "$SYNC_SECRETS" == "true" ]]; then
     exit 1
   fi
   echo "Syncing Worker secret ONEMAP_API_TOKEN..."
-  printf "%s" "$ONEMAP_API_TOKEN" | npx wrangler secret put ONEMAP_API_TOKEN --config worker/wrangler.toml
+  printf "%s" "$ONEMAP_API_TOKEN" | pnpm exec wrangler secret put ONEMAP_API_TOKEN --config worker/wrangler.toml
 else
   echo "Skipping secret sync (pass --sync-secrets to update ONEMAP_API_TOKEN)."
 fi
 
 echo "Deploying Worker..."
-npm run worker:deploy
+pnpm run worker:deploy
 
 echo "Deploying Pages..."
-npx wrangler pages deploy frontend --project-name check-your-view
+pnpm exec wrangler pages deploy frontend --project-name check-your-view
 
 echo "Deploy complete."

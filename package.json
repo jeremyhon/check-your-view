@@ -9,7 +9,7 @@
   "main": "worker/src/index.js",
   "scripts": {
     "viewer:dev": "vite frontend --host --port 5173 --strictPort",
-    "dev": "concurrently -k -n CLIENT,PROXY \"npm:viewer:dev\" \"npm:worker:dev\"",
+    "dev": "concurrently -k -n CLIENT,PROXY \"pnpm run viewer:dev\" \"pnpm run worker:dev\"",
     "worker:dev": "wrangler dev --config worker/wrangler.toml --port 8787",
     "worker:deploy": "wrangler deploy --config worker/wrangler.toml",
     "deploy": "bash scripts/deploy.sh",
@@ -31,5 +31,6 @@
     "serve": "^14.2.6",
     "vite": "^7.1.12",
     "wrangler": "^4.70.0"
-  }
+  },
+  "packageManager": "pnpm@10.29.3"
 }
