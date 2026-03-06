@@ -99,9 +99,7 @@ function readStateFromInputs() {
     state.lat = DEFAULTS.lat;
     state.lng = DEFAULTS.lng;
   }
-  state.floor_height_m = sanitizeFloorHeight(ui.floorHeightM.value, DEFAULTS.floor_height_m);
-  state.floor_level = Math.max(parseNumber(ui.floorLevel.value, state.floor_level), 0);
-  state.height_m = clamp(parseNumber(ui.heightM.value, state.height_m), 1, 5000);
+  syncFloorAndHeightFromInputs("height");
   state.fov_deg = clamp(parseNumber(ui.fovDeg.value, state.fov_deg), 20, 120);
   state.heading_deg = normalizeDeg(parseNumber(ui.headingDeg.value, state.heading_deg));
   state.pitch_deg = clamp(parseNumber(ui.pitchDeg.value, state.pitch_deg), -89, 89);
@@ -122,22 +120,28 @@ function updateInputAngles() {
   ui.pitchDeg.value = state.pitch_deg.toFixed(1);
 }
 
-function syncHeightFromFloorInputs() {
+function syncFloorAndHeightFromInputs(mode) {
   state.floor_height_m = sanitizeFloorHeight(ui.floorHeightM.value, DEFAULTS.floor_height_m);
-  state.floor_level = Math.max(parseNumber(ui.floorLevel.value, state.floor_level), 0);
-  state.height_m = clamp(heightFromFloor(state.floor_level, state.floor_height_m), 1, 5000);
+  const floorLevelInput = Math.max(parseNumber(ui.floorLevel.value, state.floor_level), 0);
+  const heightInput = clamp(parseNumber(ui.heightM.value, state.height_m), 1, 5000);
+  if (mode === "floor") {
+    state.floor_level = floorLevelInput;
+    state.height_m = clamp(heightFromFloor(state.floor_level, state.floor_height_m), 1, 5000);
+  } else {
+    state.height_m = heightInput;
+    state.floor_level = floorLevelFromHeight(state.height_m, state.floor_height_m);
+  }
   ui.floorHeightM.value = state.floor_height_m.toFixed(2);
   ui.floorLevel.value = state.floor_level.toFixed(2);
   ui.heightM.value = state.height_m.toFixed(1);
 }
 
+function syncHeightFromFloorInputs() {
+  syncFloorAndHeightFromInputs("floor");
+}
+
 function syncFloorFromHeightInput() {
-  state.floor_height_m = sanitizeFloorHeight(ui.floorHeightM.value, DEFAULTS.floor_height_m);
-  state.height_m = clamp(parseNumber(ui.heightM.value, state.height_m), 1, 5000);
-  state.floor_level = floorLevelFromHeight(state.height_m, state.floor_height_m);
-  ui.floorHeightM.value = state.floor_height_m.toFixed(2);
-  ui.floorLevel.value = state.floor_level.toFixed(2);
-  ui.heightM.value = state.height_m.toFixed(1);
+  syncFloorAndHeightFromInputs("height");
 }
 
 function baseMapUrl() {
