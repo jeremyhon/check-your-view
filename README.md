@@ -61,6 +61,24 @@ pnpm run viewer:dev
 pnpm run worker:dev
 ```
 
+## Environment Loading (direnv)
+
+Use `direnv` to auto-load deploy secrets only inside this repo directory.
+
+1. Install and enable `direnv` shell integration.
+2. Create `~/.config/secrets/check-my-view.env` using [.envrc.example](/home/jeremyhon/check-my-view/.envrc.example).
+3. In repo root, run:
+
+```bash
+direnv allow
+```
+
+Required vars for deploy scripts:
+
+- `CLOUDFLARE_API_TOKEN`
+- optional `CLOUDFLARE_ACCOUNT_ID`
+- `ONEMAP_API_TOKEN` (only needed for `deploy:sync-secrets`)
+
 ## Worker Config
 
 Configured in `worker/wrangler.toml`:

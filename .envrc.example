@@ -1,0 +1,8 @@
+# Copy secret values into ~/.config/secrets/check-my-view.env (recommended),
+# then run `direnv allow` in the repo root.
+#
+# Example ~/.config/secrets/check-my-view.env:
+#
+# export CLOUDFLARE_API_TOKEN="..."
+# export CLOUDFLARE_ACCOUNT_ID="d01f17e7fb269a7d9761cafe83c91b4c"
+# export ONEMAP_API_TOKEN="..."
