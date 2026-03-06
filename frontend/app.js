@@ -22,6 +22,14 @@ import {
 } from "./js/constants.js";
 import { createLocationController } from "./js/location-controls.js";
 import { createPanelController, setMiniMapInstructionText } from "./js/panel-controls.js";
+import {
+  buildShareUrlFromState,
+  floorLevelFromHeight,
+  heightFromFloor,
+  isWithinBounds,
+  parseStateFromQuery,
+  sanitizeFloorHeight,
+} from "./js/pose-state.js";
 const SINGAPORE_RECTANGLE = Cesium.Rectangle.fromDegrees(
   SINGAPORE_RECTANGLE_DEGREES.west,
   SINGAPORE_RECTANGLE_DEGREES.south,
@@ -74,73 +82,6 @@ const ui = {
   status: $("status"),
 };
 
-function sanitizeFloorHeight(value) {
-  return clamp(parseNumber(value, DEFAULTS.floor_height_m), 0.1, 10);
-}
-
-function floorLevelFromHeight(height, floorHeight) {
-  const safeFloorHeight = Math.max(floorHeight, 0.1);
-  return Math.max(height / safeFloorHeight, 0);
-}
-
-function heightFromFloor(level, floorHeight) {
-  return Math.max(level, 0) * Math.max(floorHeight, 0.1);
-}
-
-function isWithinSingapore(lat, lng) {
-  return (
-    lat >= SG_LIMITS.minLat &&
-    lat <= SG_LIMITS.maxLat &&
-    lng >= SG_LIMITS.minLng &&
-    lng <= SG_LIMITS.maxLng
-  );
-}
-
-function normalizeLegacyDegeneratePose() {
-  const nearZero = (x) => Math.abs(x) < 0.0001;
-  if (nearZero(state.heading_deg) && nearZero(state.pitch_deg) && state.fov_deg <= 20.1) {
-    state.pitch_deg = DEFAULTS.pitch_deg;
-    state.fov_deg = DEFAULTS.fov_deg;
-  }
-}
-
-function applyStateFromQuery() {
-  const params = new URLSearchParams(window.location.search);
-  state.proxy_base = params.get("proxy_base") || DEFAULTS.proxy_base;
-  state.lat = parseNumber(params.get("lat"), DEFAULTS.lat);
-  state.lng = parseNumber(params.get("lng"), DEFAULTS.lng);
-  if (!isWithinSingapore(state.lat, state.lng)) {
-    state.lat = DEFAULTS.lat;
-    state.lng = DEFAULTS.lng;
-  }
-  state.floor_height_m = sanitizeFloorHeight(params.get("floor_height_m"));
-  const hasHeight = params.has("height_m");
-  const hasFloorLevel = params.has("floor_level");
-
-  if (hasHeight) {
-    const heightCandidate = parseNumber(params.get("height_m"), DEFAULTS.height_m);
-    state.height_m = clamp(heightCandidate, 1, 5000);
-  } else {
-    state.height_m = DEFAULTS.height_m;
-  }
-
-  if (hasFloorLevel) {
-    state.floor_level = Math.max(parseNumber(params.get("floor_level"), DEFAULTS.floor_level), 0);
-    if (!hasHeight) {
-      state.height_m = clamp(heightFromFloor(state.floor_level, state.floor_height_m), 1, 5000);
-    }
-  } else {
-    state.floor_level = floorLevelFromHeight(state.height_m, state.floor_height_m);
-  }
-  state.heading_deg = normalizeDeg(parseNumber(params.get("heading_deg"), DEFAULTS.heading_deg));
-  state.pitch_deg = clamp(parseNumber(params.get("pitch_deg"), DEFAULTS.pitch_deg), -89, 89);
-  const fovCandidate = parseNumber(params.get("fov_deg"), DEFAULTS.fov_deg);
-  state.fov_deg = fovCandidate > 0 ? clamp(fovCandidate, 20, 120) : DEFAULTS.fov_deg;
-  const candidateBaseMap = params.get("base_map") || DEFAULTS.base_map;
-  state.base_map = candidateBaseMap === "DefaultRoad" ? "DefaultRoad" : "OrthoJPG";
-  normalizeLegacyDegeneratePose();
-}
-
 function syncInputsFromState() {
   ui.lat.value = state.lat;
   ui.lng.value = state.lng;
@@ -157,11 +98,11 @@ function syncInputsFromState() {
 function readStateFromInputs() {
   state.lat = parseNumber(ui.lat.value, state.lat);
   state.lng = parseNumber(ui.lng.value, state.lng);
-  if (!isWithinSingapore(state.lat, state.lng)) {
+  if (!isWithinBounds(state.lat, state.lng, SG_LIMITS)) {
     state.lat = DEFAULTS.lat;
     state.lng = DEFAULTS.lng;
   }
-  state.floor_height_m = sanitizeFloorHeight(ui.floorHeightM.value);
+  state.floor_height_m = sanitizeFloorHeight(ui.floorHeightM.value, DEFAULTS.floor_height_m);
   state.floor_level = Math.max(parseNumber(ui.floorLevel.value, state.floor_level), 0);
   state.height_m = clamp(parseNumber(ui.heightM.value, state.height_m), 1, 5000);
   state.fov_deg = clamp(parseNumber(ui.fovDeg.value, state.fov_deg), 20, 120);
@@ -170,22 +111,8 @@ function readStateFromInputs() {
   state.base_map = ui.baseMap.value === "DefaultRoad" ? "DefaultRoad" : "OrthoJPG";
 }
 
-function buildShareUrl() {
-  const params = new URLSearchParams();
-  params.set("lat", state.lat.toFixed(6));
-  params.set("lng", state.lng.toFixed(6));
-  params.set("floor_level", state.floor_level.toFixed(2));
-  params.set("floor_height_m", state.floor_height_m.toFixed(2));
-  params.set("height_m", state.height_m.toFixed(1));
-  params.set("heading_deg", state.heading_deg.toFixed(1));
-  params.set("pitch_deg", state.pitch_deg.toFixed(1));
-  params.set("fov_deg", state.fov_deg.toFixed(1));
-  params.set("base_map", state.base_map);
-  return `${window.location.origin}${window.location.pathname}?${params.toString()}`;
-}
-
 function syncUrlToState() {
-  window.history.replaceState({}, "", buildShareUrl());
+  window.history.replaceState({}, "", buildShareUrlFromState(state, window.location));
 }
 
 function setStatus(message, isError = false) {
@@ -224,7 +151,7 @@ function updateInputAngles() {
 }
 
 function syncHeightFromFloorInputs() {
-  state.floor_height_m = sanitizeFloorHeight(ui.floorHeightM.value);
+  state.floor_height_m = sanitizeFloorHeight(ui.floorHeightM.value, DEFAULTS.floor_height_m);
   state.floor_level = Math.max(parseNumber(ui.floorLevel.value, state.floor_level), 0);
   state.height_m = clamp(heightFromFloor(state.floor_level, state.floor_height_m), 1, 5000);
   ui.floorHeightM.value = state.floor_height_m.toFixed(2);
@@ -233,7 +160,7 @@ function syncHeightFromFloorInputs() {
 }
 
 function syncFloorFromHeightInput() {
-  state.floor_height_m = sanitizeFloorHeight(ui.floorHeightM.value);
+  state.floor_height_m = sanitizeFloorHeight(ui.floorHeightM.value, DEFAULTS.floor_height_m);
   state.height_m = clamp(parseNumber(ui.heightM.value, state.height_m), 1, 5000);
   state.floor_level = floorLevelFromHeight(state.height_m, state.floor_height_m);
   ui.floorHeightM.value = state.floor_height_m.toFixed(2);
@@ -406,7 +333,7 @@ async function applyPoseFromForm() {
 }
 
 async function copyShareLink() {
-  const url = buildShareUrl();
+  const url = buildShareUrlFromState(state, window.location);
   try {
     await navigator.clipboard.writeText(url);
     setStatus("Share link copied.");
@@ -447,13 +374,13 @@ function bindUi() {
 }
 
 async function bootstrap() {
-  applyStateFromQuery();
+  Object.assign(state, parseStateFromQuery(window.location.search, DEFAULTS, SG_LIMITS));
   setMiniMapInstructionText(ui, isMobileClient);
   locationController = createLocationController({
     ui,
     state,
     singaporeBounds: SINGAPORE_BOUNDS,
-    isWithinSingapore,
+    isWithinSingapore: (lat, lng) => isWithinBounds(lat, lng, SG_LIMITS),
     setStatus,
     onLocationChanged: handleLocationChanged,
   });
