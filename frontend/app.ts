@@ -38,6 +38,7 @@ import { createCameraController } from "./js/camera-controls";
 import { createSceneDataController } from "./js/scene-data";
 import { createTileDiagnosticsController } from "./js/tile-diagnostics";
 import { createUrlSyncController } from "./js/url-sync";
+import { bindDpadControls } from "./js/dpad-controls";
 import type { Cesium3DTileset, Viewer } from "cesium";
 import type {
   CameraController,
@@ -65,6 +66,8 @@ const SINGAPORE_RECTANGLE = Cesium.Rectangle.fromDegrees(
 const INSIDE_BUILDING_HEADROOM_METERS = 2;
 const INDOOR_VISIBILITY_RETRY_DELAY_MS = 900;
 const D_PAD_STEP_METERS = 1;
+const D_PAD_HOLD_REPEAT_MS = 120;
+const D_PAD_URL_SYNC_DEBOUNCE_MS = 180;
 
 const state: ViewState = { ...DEFAULTS };
 const debugState: DebugState = { ...DEBUG_DEFAULTS };
@@ -81,6 +84,7 @@ let amenityLayerController: AmenityLayerController | null = null;
 let tileDiagnosticsController!: TileDiagnosticsController;
 let urlSyncController!: UrlSyncController;
 let indoorVisibilityRetryTimerId: number | null = null;
+let poseUrlSyncDebounceTimerId: number | null = null;
 
 function requireElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
@@ -182,6 +186,23 @@ function applyQualityPresetFromInput(): void {
   applyDebugSettingsLive({ viewer, tileset, debugState });
 }
 
+function flushPoseUrlSync(): void {
+  if (poseUrlSyncDebounceTimerId !== null) {
+    window.clearTimeout(poseUrlSyncDebounceTimerId);
+    poseUrlSyncDebounceTimerId = null;
+  }
+  urlSyncController.syncNow();
+}
+
+function schedulePoseUrlSync(): void {
+  if (poseUrlSyncDebounceTimerId !== null) {
+    window.clearTimeout(poseUrlSyncDebounceTimerId);
+  }
+  poseUrlSyncDebounceTimerId = window.setTimeout(() => {
+    poseUrlSyncDebounceTimerId = null;
+    urlSyncController.syncNow();
+  }, D_PAD_URL_SYNC_DEBOUNCE_MS);
+}
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -367,9 +388,7 @@ async function initializeViewer() {
     state,
     cameraFarMeters: CAMERA_FAR_METERS,
     initialZoomPercent: state.zoom_pct,
-    onPoseChanged: () => {
-      urlSyncController.syncNow();
-    },
+    onPoseChanged: schedulePoseUrlSync,
     onOrientationInputUpdate: updateInputAngles,
     onZoomPercentChanged: (zoomPercent: number) => {
       state.zoom_pct = zoomPercent;
@@ -462,17 +481,16 @@ function bindUi() {
     }
     cameraController.resetZoom();
   });
-  ui.dpadForwardBtn.addEventListener("click", () => {
-    handleDpadMove(D_PAD_STEP_METERS, 0);
-  });
-  ui.dpadBackwardBtn.addEventListener("click", () => {
-    handleDpadMove(-D_PAD_STEP_METERS, 0);
-  });
-  ui.dpadLeftBtn.addEventListener("click", () => {
-    handleDpadMove(0, -D_PAD_STEP_METERS);
-  });
-  ui.dpadRightBtn.addEventListener("click", () => {
-    handleDpadMove(0, D_PAD_STEP_METERS);
+  bindDpadControls({
+    bindings: [
+      { button: ui.dpadForwardBtn, forwardMeters: D_PAD_STEP_METERS, rightMeters: 0 },
+      { button: ui.dpadBackwardBtn, forwardMeters: -D_PAD_STEP_METERS, rightMeters: 0 },
+      { button: ui.dpadLeftBtn, forwardMeters: 0, rightMeters: -D_PAD_STEP_METERS },
+      { button: ui.dpadRightBtn, forwardMeters: 0, rightMeters: D_PAD_STEP_METERS },
+    ],
+    repeatIntervalMs: D_PAD_HOLD_REPEAT_MS,
+    onMove: handleDpadMove,
+    onStop: flushPoseUrlSync,
   });
   ui.floorLevel.addEventListener("change", () => {
     syncHeightFromFloorInputs();
