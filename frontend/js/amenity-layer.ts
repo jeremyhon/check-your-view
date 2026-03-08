@@ -59,7 +59,7 @@ const CATEGORY_RENDER_CONFIG: Record<AmenityCategoryId, CategoryRenderConfig> = 
     color: "#cf5f16",
     radiusM: 3500,
     baseLimit: 18,
-    minZoomPct: 140,
+    minZoomPct: 100,
   },
   supermarkets_wet_markets: {
     label: "Supermarkets / Wet Markets",
@@ -302,6 +302,21 @@ export function createAmenityLayer({
     const enabledLabels = enabled
       .map((category) => CATEGORY_RENDER_CONFIG[category].label)
       .join(", ");
+    const zoomBlockedLabels = enabled
+      .filter((category) => state.zoom_pct < CATEGORY_RENDER_CONFIG[category].minZoomPct)
+      .map((category) => CATEGORY_RENDER_CONFIG[category].label);
+    if (zoomBlockedLabels.length > 0) {
+      const minZoomNeeded = Math.min(
+        ...enabled
+          .filter((category) => state.zoom_pct < CATEGORY_RENDER_CONFIG[category].minZoomPct)
+          .map((category) => CATEGORY_RENDER_CONFIG[category].minZoomPct),
+      );
+      setSummary(
+        `${summaryPrefix} (${enabledLabels}). Zoom to ${minZoomNeeded}%+ to show: ${zoomBlockedLabels.join(", ")}.`,
+      );
+      viewer.scene.requestRender();
+      return;
+    }
     setSummary(`${summaryPrefix} (${enabledLabels})`);
     viewer.scene.requestRender();
   }
