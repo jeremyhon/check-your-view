@@ -38,17 +38,6 @@
         <label for="miniMap">Location Mini Map</label>
         <div id="miniMap" aria-label="Location mini map"></div>
 
-        <div class="row">
-          <div>
-            <label for="lat">Latitude</label>
-            <input id="lat" type="number" step="0.000001" />
-          </div>
-          <div>
-            <label for="lng">Longitude</label>
-            <input id="lng" type="number" step="0.000001" />
-          </div>
-        </div>
-
         <div class="row row-three">
           <div>
             <label for="floorLevel">Floor Level</label>
@@ -64,31 +53,6 @@
           </div>
         </div>
 
-        <div class="row row-three">
-          <div>
-            <label for="fovDeg">FOV (deg)</label>
-            <input id="fovDeg" type="number" step="0.1" />
-          </div>
-          <div>
-            <label for="headingDeg">Heading (deg)</label>
-            <input id="headingDeg" type="number" step="0.1" />
-          </div>
-          <div>
-            <label for="pitchDeg">Pitch (deg)</label>
-            <input id="pitchDeg" type="number" step="0.1" />
-          </div>
-        </div>
-
-        <div class="row row-single">
-          <div>
-            <label for="baseMap">Basemap</label>
-            <select id="baseMap">
-              <option value="OrthoJPG">Ortho</option>
-              <option value="DefaultRoad">Road</option>
-            </select>
-          </div>
-        </div>
-
         <div class="actions">
           <button id="applyBtn" type="button">Apply</button>
           <button id="copyBtn" type="button">Copy Share Link</button>
@@ -99,6 +63,39 @@
 
         <details id="debugPanel" class="debug-panel">
           <summary>Debug Rendering</summary>
+          <div class="row">
+            <div>
+              <label for="lat">Latitude</label>
+              <input id="lat" type="number" step="0.000001" />
+            </div>
+            <div>
+              <label for="lng">Longitude</label>
+              <input id="lng" type="number" step="0.000001" />
+            </div>
+          </div>
+          <div class="row row-three">
+            <div>
+              <label for="fovDeg">FOV (deg)</label>
+              <input id="fovDeg" type="number" step="0.1" />
+            </div>
+            <div>
+              <label for="headingDeg">Heading (deg)</label>
+              <input id="headingDeg" type="number" step="0.1" />
+            </div>
+            <div>
+              <label for="pitchDeg">Pitch (deg)</label>
+              <input id="pitchDeg" type="number" step="0.1" />
+            </div>
+          </div>
+          <div class="row row-single">
+            <div>
+              <label for="baseMap">Basemap</label>
+              <select id="baseMap">
+                <option value="OrthoJPG">Ortho</option>
+                <option value="DefaultRoad">Road</option>
+              </select>
+            </div>
+          </div>
           <div class="debug-grid">
             <label class="debug-toggle" for="debugFogEnabled">
               <input id="debugFogEnabled" type="checkbox" />
