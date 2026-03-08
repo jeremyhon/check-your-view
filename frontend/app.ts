@@ -256,7 +256,7 @@ function maybeLogTileDiagnostics(targetTileset: Cesium3DTileset, nowMs: number):
   ) {
     return;
   }
-  console.log("[diag] tiles", {
+  const snapshot = {
     pendingRequests: tileDiagnosticsState.pendingRequests,
     tilesProcessing: tileDiagnosticsState.tilesProcessing,
     maxPendingRequests: tileDiagnosticsState.maxPendingRequests,
@@ -279,7 +279,8 @@ function maybeLogTileDiagnostics(targetTileset: Cesium3DTileset, nowMs: number):
     loadSiblings: targetTileset.loadSiblings,
     lastTileFailedUrl: tileDiagnosticsState.lastTileFailedUrl,
     lastTileFailedMessage: tileDiagnosticsState.lastTileFailedMessage,
-  });
+  };
+  console.log(`[diag] tiles ${JSON.stringify(snapshot)}`);
 }
 
 function renderTileDiagnostics(): void {
