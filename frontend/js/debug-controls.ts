@@ -21,17 +21,30 @@ type TileCacheBudget = {
   overflowBytes: number;
 };
 
+type SkipLodTuning = {
+  baseScreenSpaceError: number;
+  skipScreenSpaceErrorFactor: number;
+  skipLevels: number;
+};
+
 const BYTES_PER_MB = 1024 * 1024;
 const QUALITY_CACHE_BUDGET: Record<QualityPreset, TileCacheBudget> = {
   ultra: { cacheBytes: 1024 * BYTES_PER_MB, overflowBytes: 512 * BYTES_PER_MB },
   high: { cacheBytes: 768 * BYTES_PER_MB, overflowBytes: 384 * BYTES_PER_MB },
-  medium: { cacheBytes: 512 * BYTES_PER_MB, overflowBytes: 256 * BYTES_PER_MB },
-  low: { cacheBytes: 320 * BYTES_PER_MB, overflowBytes: 160 * BYTES_PER_MB },
+  medium: { cacheBytes: 640 * BYTES_PER_MB, overflowBytes: 320 * BYTES_PER_MB },
+  low: { cacheBytes: 448 * BYTES_PER_MB, overflowBytes: 224 * BYTES_PER_MB },
 };
 
 export function getQualityCacheBudget(qualityPreset: QualityPreset): TileCacheBudget {
   return QUALITY_CACHE_BUDGET[qualityPreset];
 }
+
+const QUALITY_SKIP_LOD_TUNING: Record<QualityPreset, SkipLodTuning> = {
+  ultra: { baseScreenSpaceError: 0, skipScreenSpaceErrorFactor: 1, skipLevels: 0 },
+  high: { baseScreenSpaceError: 768, skipScreenSpaceErrorFactor: 12, skipLevels: 1 },
+  medium: { baseScreenSpaceError: 512, skipScreenSpaceErrorFactor: 8, skipLevels: 1 },
+  low: { baseScreenSpaceError: 896, skipScreenSpaceErrorFactor: 20, skipLevels: 1 },
+};
 const QUALITY_PRESETS: Record<
   QualityPreset,
   Omit<DebugState, "fogEnabled" | "loadSiblings" | "cullWithChildrenBounds">
@@ -46,26 +59,26 @@ const QUALITY_PRESETS: Record<
   },
   high: {
     dynamicScreenSpaceError: true,
-    maximumScreenSpaceError: 8,
+    maximumScreenSpaceError: 6,
     skipLevelOfDetail: true,
     cullRequestsWhileMoving: true,
-    cullRequestsWhileMovingMultiplier: 8,
+    cullRequestsWhileMovingMultiplier: 6,
     foveatedScreenSpaceError: true,
   },
   medium: {
     dynamicScreenSpaceError: true,
-    maximumScreenSpaceError: 16,
+    maximumScreenSpaceError: 10,
     skipLevelOfDetail: true,
-    cullRequestsWhileMoving: true,
-    cullRequestsWhileMovingMultiplier: 12,
+    cullRequestsWhileMoving: false,
+    cullRequestsWhileMovingMultiplier: 4,
     foveatedScreenSpaceError: true,
   },
   low: {
     dynamicScreenSpaceError: true,
-    maximumScreenSpaceError: 32,
+    maximumScreenSpaceError: 20,
     skipLevelOfDetail: true,
     cullRequestsWhileMoving: true,
-    cullRequestsWhileMovingMultiplier: 16,
+    cullRequestsWhileMovingMultiplier: 10,
     foveatedScreenSpaceError: true,
   },
 };
@@ -146,12 +159,17 @@ export function applyDebugSettingsToTileset(
     immediatelyLoadDesiredLevelOfDetail?: boolean;
     preferLeaves?: boolean;
   };
+  const skipLodTuning = QUALITY_SKIP_LOD_TUNING[qualityPreset];
   targetTileset.dynamicScreenSpaceError = debugState.dynamicScreenSpaceError;
   targetTileset.maximumScreenSpaceError = debugState.maximumScreenSpaceError;
   targetTileset.skipLevelOfDetail = debugState.skipLevelOfDetail;
-  targetTileset.baseScreenSpaceError = debugState.skipLevelOfDetail ? 1024 : 0;
-  targetTileset.skipScreenSpaceErrorFactor = debugState.skipLevelOfDetail ? 16 : 1;
-  targetTileset.skipLevels = debugState.skipLevelOfDetail ? 1 : 0;
+  targetTileset.baseScreenSpaceError = debugState.skipLevelOfDetail
+    ? skipLodTuning.baseScreenSpaceError
+    : 0;
+  targetTileset.skipScreenSpaceErrorFactor = debugState.skipLevelOfDetail
+    ? skipLodTuning.skipScreenSpaceErrorFactor
+    : 1;
+  targetTileset.skipLevels = debugState.skipLevelOfDetail ? skipLodTuning.skipLevels : 0;
   tilesetWithInternalCulling.cullWithChildrenBounds = debugState.cullWithChildrenBounds;
   targetTileset.cullRequestsWhileMoving = debugState.cullRequestsWhileMoving;
   targetTileset.cullRequestsWhileMovingMultiplier = debugState.cullRequestsWhileMovingMultiplier;
