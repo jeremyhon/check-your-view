@@ -1,4 +1,4 @@
-import { DISABLE_3D_OPTIMIZATIONS } from "./constants";
+import { DISABLE_3D_OPTIMIZATIONS, isMobileClient } from "./constants";
 import { clamp, parseNumber } from "./utils";
 import type { Cesium3DTileset, Viewer } from "cesium";
 import type { DebugControlId, DebugState, QualityPreset, UiElements } from "./types";
@@ -7,6 +7,7 @@ type DebugLiveApplyArgs = {
   viewer: Viewer | null;
   tileset?: Cesium3DTileset | null;
   debugState: DebugState;
+  qualityPreset: QualityPreset;
 };
 
 type DebugControlsBindOptions = {
@@ -16,8 +17,28 @@ type DebugControlsBindOptions = {
   onChange?: (controlId: DebugControlId) => void;
 };
 
-const DIAGNOSTIC_CACHE_BYTES = 1280 * 1024 * 1024;
-const DIAGNOSTIC_OVERFLOW_BYTES = 1280 * 1024 * 1024;
+type TileCacheBudget = {
+  cacheBytes: number;
+  overflowBytes: number;
+};
+
+const BYTES_PER_MB = 1024 * 1024;
+const MOBILE_QUALITY_CACHE_MB: Record<QualityPreset, TileCacheBudget> = {
+  ultra: { cacheBytes: 512 * BYTES_PER_MB, overflowBytes: 256 * BYTES_PER_MB },
+  high: { cacheBytes: 384 * BYTES_PER_MB, overflowBytes: 192 * BYTES_PER_MB },
+  medium: { cacheBytes: 256 * BYTES_PER_MB, overflowBytes: 128 * BYTES_PER_MB },
+  low: { cacheBytes: 192 * BYTES_PER_MB, overflowBytes: 96 * BYTES_PER_MB },
+};
+const DESKTOP_QUALITY_CACHE_MB: Record<QualityPreset, TileCacheBudget> = {
+  ultra: { cacheBytes: 1024 * BYTES_PER_MB, overflowBytes: 512 * BYTES_PER_MB },
+  high: { cacheBytes: 768 * BYTES_PER_MB, overflowBytes: 384 * BYTES_PER_MB },
+  medium: { cacheBytes: 512 * BYTES_PER_MB, overflowBytes: 256 * BYTES_PER_MB },
+  low: { cacheBytes: 320 * BYTES_PER_MB, overflowBytes: 160 * BYTES_PER_MB },
+};
+
+export function getQualityCacheBudget(qualityPreset: QualityPreset): TileCacheBudget {
+  return (isMobileClient ? MOBILE_QUALITY_CACHE_MB : DESKTOP_QUALITY_CACHE_MB)[qualityPreset];
+}
 const QUALITY_PRESETS: Record<
   QualityPreset,
   Omit<DebugState, "fogEnabled" | "loadSiblings" | "cullWithChildrenBounds">
@@ -122,6 +143,7 @@ export function readDebugStateFromInputs(ui: UiElements, debugState: DebugState)
 export function applyDebugSettingsToTileset(
   debugState: DebugState,
   targetTileset?: Cesium3DTileset | null,
+  qualityPreset: QualityPreset = "high",
 ): void {
   if (!targetTileset) {
     return;
@@ -156,23 +178,26 @@ export function applyDebugSettingsToTileset(
     effectiveDebugState.cullRequestsWhileMovingMultiplier;
   targetTileset.foveatedScreenSpaceError = effectiveDebugState.foveatedScreenSpaceError;
   targetTileset.loadSiblings = effectiveDebugState.loadSiblings;
-  targetTileset.cacheBytes = Math.max(targetTileset.cacheBytes, DIAGNOSTIC_CACHE_BYTES);
-  targetTileset.maximumCacheOverflowBytes = Math.max(
-    targetTileset.maximumCacheOverflowBytes,
-    DIAGNOSTIC_OVERFLOW_BYTES,
-  );
+  const cacheBudget = getQualityCacheBudget(qualityPreset);
+  targetTileset.cacheBytes = cacheBudget.cacheBytes;
+  targetTileset.maximumCacheOverflowBytes = cacheBudget.overflowBytes;
   targetTileset.preloadWhenHidden = false;
   targetTileset.preloadFlightDestinations = false;
   tilesetWithInternalCulling.immediatelyLoadDesiredLevelOfDetail = false;
   tilesetWithInternalCulling.preferLeaves = false;
 }
 
-export function applyDebugSettingsLive({ viewer, tileset, debugState }: DebugLiveApplyArgs): void {
+export function applyDebugSettingsLive({
+  viewer,
+  tileset,
+  debugState,
+  qualityPreset,
+}: DebugLiveApplyArgs): void {
   if (!viewer) {
     return;
   }
   viewer.scene.fog.enabled = debugState.fogEnabled;
-  applyDebugSettingsToTileset(debugState, tileset);
+  applyDebugSettingsToTileset(debugState, tileset, qualityPreset);
   viewer.scene.requestRender();
 }
 

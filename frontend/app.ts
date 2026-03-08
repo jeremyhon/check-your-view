@@ -71,6 +71,7 @@ const D_PAD_URL_SYNC_DEBOUNCE_MS = 180;
 const state: ViewState = { ...DEFAULTS };
 const debugState: DebugState = { ...DEBUG_DEFAULTS };
 const defaultQualityPreset: QualityPreset = isMobileClient ? "medium" : "high";
+let currentQualityPreset: QualityPreset = defaultQualityPreset;
 let viewer: Viewer | null = null;
 let tileset: Cesium3DTileset | null = null;
 let panelController!: PanelController;
@@ -176,10 +177,11 @@ function parseQualityPreset(value: string): QualityPreset {
 
 function applyQualityPresetFromInput(): void {
   const qualityPreset = parseQualityPreset(ui.qualityPreset.value);
+  currentQualityPreset = qualityPreset;
   ui.qualityPreset.value = qualityPreset;
   applyQualityPreset(debugState, qualityPreset);
   syncDebugInputsFromState(ui, debugState, debugUiEnabled);
-  applyDebugSettingsLive({ viewer, tileset, debugState });
+  applyDebugSettingsLive({ viewer, tileset, debugState, qualityPreset });
 }
 
 function errorMessage(error: unknown): string {
@@ -326,7 +328,9 @@ async function initializeViewer() {
     state,
     singaporeRectangle: SINGAPORE_RECTANGLE,
     debugState,
-    applyDebugSettingsToTileset,
+    applyDebugSettingsToTileset: (nextDebugState, targetTileset) => {
+      applyDebugSettingsToTileset(nextDebugState, targetTileset, currentQualityPreset);
+    },
     onTilesetLoaded: (nextTileset: Cesium3DTileset) => {
       tileset = nextTileset;
       if (debugUiEnabled) {
@@ -430,7 +434,12 @@ function bindUi() {
     enabled: debugUiEnabled,
     debugState,
     onChange: (controlId: DebugControlId) => {
-      applyDebugSettingsLive({ viewer, tileset, debugState });
+      applyDebugSettingsLive({
+        viewer,
+        tileset,
+        debugState,
+        qualityPreset: currentQualityPreset,
+      });
       console.log(`[debug] ${controlId} = ${getDebugValueByControlId(controlId, debugState)}`, {
         ...debugState,
       });
