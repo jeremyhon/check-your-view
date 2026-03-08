@@ -8,5 +8,7 @@ ONEMAP_REFERER = "https://www.onemap.gov.sg/3d"
 # Comma-separated allowlist of frontend origins.
 # Example: "http://localhost:5173,https://viewer.example.com"
 ALLOWED_ORIGINS = "*"
+# URL to the generated amenities JSON dataset (used by /api/amenities).
+AMENITIES_DATA_URL = "https://check-your-view.pages.dev/data/amenities/osm-amenities-latest.json"
 # Secret (set via `wrangler secret put ONEMAP_API_TOKEN`)
 # ONEMAP_API_TOKEN = ""

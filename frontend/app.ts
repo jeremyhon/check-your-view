@@ -26,6 +26,7 @@ import {
 import { createLocationController } from "./js/location-controls";
 import { createPanelController, setMiniMapInstructionText } from "./js/panel-controls";
 import { createCompassOverlay } from "./js/compass-overlay";
+import { createAmenityLayer } from "./js/amenity-layer";
 import {
   buildShareUrlFromState,
   floorLevelFromHeight,
@@ -39,6 +40,7 @@ import { createSceneDataController } from "./js/scene-data";
 import type { Cesium3DTileset, Viewer } from "cesium";
 import type {
   CameraController,
+  AmenityLayerController,
   CompassOverlayController,
   DebugControlId,
   DebugState,
@@ -93,6 +95,7 @@ let locationController!: LocationController;
 let cameraController!: CameraController;
 let sceneDataController!: SceneDataController;
 let compassOverlayController!: CompassOverlayController;
+let amenityLayerController: AmenityLayerController | null = null;
 let tileDiagnosticsIntervalId: number | null = null;
 let tileDiagnosticsWatchedTileset: Cesium3DTileset | null = null;
 let tileDiagnosticsCleanupFns: Array<() => void> = [];
@@ -139,6 +142,13 @@ const ui: UiElements = {
   lng: requireElement("lng"),
   searchInput: requireElement("searchInput"),
   searchResults: requireElement("searchResults"),
+  amenitySummary: requireElement("amenitySummary"),
+  amenityToggleMrtLrt: requireElement("amenityToggleMrtLrt"),
+  amenityTogglePrimarySchools: requireElement("amenityTogglePrimarySchools"),
+  amenityTogglePreschools: requireElement("amenityTogglePreschools"),
+  amenityToggleShoppingMalls: requireElement("amenityToggleShoppingMalls"),
+  amenityToggleSupermarketsWetMarkets: requireElement("amenityToggleSupermarketsWetMarkets"),
+  amenityToggleHawkerFoodCourts: requireElement("amenityToggleHawkerFoodCourts"),
   floorLevel: requireElement("floorLevel"),
   floorHeightM: requireElement("floorHeightM"),
   heightM: requireElement("heightM"),
@@ -452,6 +462,7 @@ function syncFloorFromHeightInput() {
 
 function handleLocationChanged(): void {
   cameraController.applyFixedPose();
+  amenityLayerController?.refresh();
   syncUrlToState();
 }
 
@@ -517,6 +528,7 @@ async function initializeViewer() {
     onZoomPercentChanged: (zoomPercent: number) => {
       state.zoom_pct = zoomPercent;
       syncZoomResetOverlay(zoomPercent);
+      amenityLayerController?.refresh();
       syncUrlToState();
     },
   });
@@ -548,6 +560,14 @@ async function initializeViewer() {
       }
     },
   });
+  amenityLayerController = createAmenityLayer({
+    viewer,
+    ui,
+    state,
+    setStatus,
+  });
+  amenityLayerController.bindToggleControls();
+  void amenityLayerController.initialize();
   locationController.initializeMiniMap();
 
   // Avoid blank startup while heavy 3D tiles are loading.
@@ -568,6 +588,7 @@ async function applyPoseFromForm() {
     await sceneDataController.ensureSceneDataLoaded();
     locationController.syncMiniMapFromState(true);
     cameraController.applyFixedPose();
+    amenityLayerController?.refresh();
     updateInputAngles();
     syncUrlToState();
     setStatus("Pose applied.");

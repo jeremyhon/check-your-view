@@ -1,6 +1,13 @@
 import type { Cesium3DTileset } from "cesium";
 
 export type BaseMap = "OrthoJPG" | "DefaultRoad";
+export type AmenityCategoryId =
+  | "mrt_lrt"
+  | "primary_schools"
+  | "preschools"
+  | "shopping_malls"
+  | "supermarkets_wet_markets"
+  | "hawker_food_courts";
 
 export interface ViewState {
   proxy_base: string;
@@ -55,6 +62,22 @@ export interface OneMapSearchPayload {
   results?: OneMapSearchResult[];
 }
 
+export interface AmenityPoint {
+  id: string;
+  category: AmenityCategoryId;
+  name: string;
+  lat: number;
+  lng: number;
+  subcategory?: string;
+}
+
+export interface AmenityDataset {
+  schema_version?: number;
+  generated_at?: string;
+  counts?: Partial<Record<AmenityCategoryId, number>>;
+  amenities?: AmenityPoint[];
+}
+
 export interface UiElements {
   compassTrack: HTMLElement;
   compassReadout: HTMLElement;
@@ -66,6 +89,13 @@ export interface UiElements {
   lng: HTMLInputElement;
   searchInput: HTMLInputElement;
   searchResults: HTMLElement;
+  amenitySummary: HTMLElement;
+  amenityToggleMrtLrt: HTMLInputElement;
+  amenityTogglePrimarySchools: HTMLInputElement;
+  amenityTogglePreschools: HTMLInputElement;
+  amenityToggleShoppingMalls: HTMLInputElement;
+  amenityToggleSupermarketsWetMarkets: HTMLInputElement;
+  amenityToggleHawkerFoodCourts: HTMLInputElement;
   floorLevel: HTMLInputElement;
   floorHeightM: HTMLInputElement;
   heightM: HTMLInputElement;
@@ -113,6 +143,12 @@ export interface CameraController {
   lockPositionControls(): void;
   installZoomControls(): void;
   resetZoom(): void;
+}
+
+export interface AmenityLayerController {
+  bindToggleControls(): void;
+  initialize(): Promise<void>;
+  refresh(): void;
 }
 
 export interface SceneDataController {

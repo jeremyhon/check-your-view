@@ -3,6 +3,7 @@ const ALLOWED_PREFIXES = [
   "/maps/tiles/OrthoJPG/",
   "/maps/tiles/DefaultRoad/",
   "/api/common/elastic/search",
+  "/api/amenities",
 ];
 
 const ALLOWED_METHODS = "GET,HEAD,OPTIONS";
@@ -16,6 +17,7 @@ type Env = {
   ONEMAP_REFERER: string;
   ALLOWED_ORIGINS?: string;
   ONEMAP_API_TOKEN?: string;
+  AMENITIES_DATA_URL?: string;
 };
 
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -148,6 +150,10 @@ function isImageryPath(pathname: string): boolean {
   return pathname.startsWith("/maps/tiles/");
 }
 
+function isAmenitiesPath(pathname: string): boolean {
+  return pathname === "/api/amenities";
+}
+
 function buildUpstreamUrl(env: Env, url: URL): string {
   return `${env.ONEMAP_BASE_URL}${url.pathname}${url.search}`;
 }
@@ -265,6 +271,85 @@ async function handleProxyRoute(
   });
 }
 
+async function handleAmenitiesRoute(
+  request: Request,
+  env: Env,
+  corsHeaders: CorsHeaders | null,
+): Promise<Response> {
+  if (!env.AMENITIES_DATA_URL) {
+    return createJsonResponse(
+      503,
+      {
+        error: "AMENITIES_DATA_URL is not configured.",
+        detail:
+          "Set AMENITIES_DATA_URL to a JSON dataset URL, or provide /data/amenities/osm-amenities-latest.json on the frontend host.",
+      },
+      corsHeaders,
+    );
+  }
+
+  let upstreamResponse: Response;
+  try {
+    upstreamResponse = await fetch(env.AMENITIES_DATA_URL, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+      redirect: "follow",
+      cf: {
+        cacheEverything: true,
+        cacheTtlByStatus: {
+          "200-299": 1800,
+          "400-499": 60,
+          "500-599": 0,
+        },
+      },
+    });
+  } catch (error) {
+    return createJsonResponse(
+      502,
+      { error: "Amenities fetch failed", detail: String(error) },
+      corsHeaders,
+    );
+  }
+
+  if (!upstreamResponse.ok) {
+    return createJsonResponse(
+      502,
+      {
+        error: "Amenities upstream returned non-OK status",
+        status: upstreamResponse.status,
+      },
+      corsHeaders,
+    );
+  }
+
+  const headers = copyResponseHeaders(upstreamResponse.headers, corsHeaders, "/api/amenities");
+  if (!headers.get("content-type")) {
+    headers.set("content-type", "application/json; charset=utf-8");
+  }
+  if (!headers.get("cache-control")) {
+    headers.set(
+      "cache-control",
+      "public, max-age=300, s-maxage=1800, stale-while-revalidate=86400",
+    );
+  }
+
+  if (request.method === "HEAD") {
+    return new Response(null, {
+      status: upstreamResponse.status,
+      statusText: upstreamResponse.statusText,
+      headers,
+    });
+  }
+
+  return new Response(upstreamResponse.body, {
+    status: upstreamResponse.status,
+    statusText: upstreamResponse.statusText,
+    headers,
+  });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -295,6 +380,10 @@ export default {
 
     if (isImageryPath(url.pathname)) {
       return handleImageryRoute(request, env, url, corsHeaders);
+    }
+
+    if (isAmenitiesPath(url.pathname)) {
+      return handleAmenitiesRoute(request, env, corsHeaders);
     }
 
     return handleProxyRoute(request, env, url, corsHeaders);

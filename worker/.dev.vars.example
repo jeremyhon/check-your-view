@@ -1,1 +1,2 @@
 ONEMAP_API_TOKEN=replace_with_your_onemap_api_token
+AMENITIES_DATA_URL=http://localhost:5173/data/amenities/osm-amenities-latest.json
