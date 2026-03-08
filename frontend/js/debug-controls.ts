@@ -1,7 +1,7 @@
 import { DISABLE_3D_OPTIMIZATIONS } from "./constants";
 import { clamp, parseNumber } from "./utils";
 import type { Cesium3DTileset, Viewer } from "cesium";
-import type { DebugControlId, DebugState, UiElements } from "./types";
+import type { DebugControlId, DebugState, QualityPreset, UiElements } from "./types";
 
 type DebugLiveApplyArgs = {
   viewer: Viewer | null;
@@ -18,6 +18,55 @@ type DebugControlsBindOptions = {
 
 const DIAGNOSTIC_CACHE_BYTES = 1280 * 1024 * 1024;
 const DIAGNOSTIC_OVERFLOW_BYTES = 1280 * 1024 * 1024;
+const QUALITY_PRESETS: Record<
+  QualityPreset,
+  Omit<DebugState, "fogEnabled" | "loadSiblings" | "cullWithChildrenBounds">
+> = {
+  ultra: {
+    dynamicScreenSpaceError: false,
+    maximumScreenSpaceError: 2,
+    skipLevelOfDetail: false,
+    cullRequestsWhileMoving: false,
+    cullRequestsWhileMovingMultiplier: 1,
+    foveatedScreenSpaceError: false,
+  },
+  high: {
+    dynamicScreenSpaceError: true,
+    maximumScreenSpaceError: 8,
+    skipLevelOfDetail: true,
+    cullRequestsWhileMoving: true,
+    cullRequestsWhileMovingMultiplier: 8,
+    foveatedScreenSpaceError: true,
+  },
+  medium: {
+    dynamicScreenSpaceError: true,
+    maximumScreenSpaceError: 16,
+    skipLevelOfDetail: true,
+    cullRequestsWhileMoving: true,
+    cullRequestsWhileMovingMultiplier: 12,
+    foveatedScreenSpaceError: true,
+  },
+  low: {
+    dynamicScreenSpaceError: true,
+    maximumScreenSpaceError: 32,
+    skipLevelOfDetail: true,
+    cullRequestsWhileMoving: true,
+    cullRequestsWhileMovingMultiplier: 16,
+    foveatedScreenSpaceError: true,
+  },
+};
+
+export function applyQualityPreset(debugState: DebugState, qualityPreset: QualityPreset): void {
+  const profile = QUALITY_PRESETS[qualityPreset];
+  debugState.dynamicScreenSpaceError = profile.dynamicScreenSpaceError;
+  debugState.maximumScreenSpaceError = profile.maximumScreenSpaceError;
+  debugState.skipLevelOfDetail = profile.skipLevelOfDetail;
+  debugState.cullRequestsWhileMoving = profile.cullRequestsWhileMoving;
+  debugState.cullRequestsWhileMovingMultiplier = profile.cullRequestsWhileMovingMultiplier;
+  debugState.foveatedScreenSpaceError = profile.foveatedScreenSpaceError;
+  debugState.cullWithChildrenBounds = true;
+  debugState.loadSiblings = false;
+}
 
 export function setDebugPanelVisibility(ui: UiElements, enabled: boolean): void {
   if (!ui.debugPanel) {

@@ -27,6 +27,8 @@ export interface DebugState {
   foveatedScreenSpaceError: boolean;
 }
 
+export type QualityPreset = "ultra" | "high" | "medium" | "low";
+
 export interface BoundsLimits {
   minLat: number;
   maxLat: number;
@@ -66,6 +68,7 @@ export interface UiElements {
   floorLevel: HTMLInputElement;
   floorHeightM: HTMLInputElement;
   heightM: HTMLInputElement;
+  qualityPreset: HTMLSelectElement;
   fovDeg: HTMLInputElement;
   headingDeg: HTMLInputElement;
   pitchDeg: HTMLInputElement;

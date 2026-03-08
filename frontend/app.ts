@@ -4,6 +4,7 @@ import "./config";
 
 import { clamp, normalizeDeg, parseNumber } from "./js/utils";
 import {
+  applyQualityPreset,
   applyDebugSettingsLive,
   applyDebugSettingsToTileset,
   bindDebugControls,
@@ -44,6 +45,7 @@ import type {
   FloorSyncMode,
   LocationController,
   PanelController,
+  QualityPreset,
   SceneDataController,
   UiElements,
   ViewState,
@@ -83,6 +85,7 @@ type TileDiagnosticsState = {
 
 const state: ViewState = { ...DEFAULTS };
 const debugState: DebugState = { ...DEBUG_DEFAULTS };
+const defaultQualityPreset: QualityPreset = isMobileClient ? "medium" : "high";
 let viewer: Viewer | null = null;
 let tileset: Cesium3DTileset | null = null;
 let panelController!: PanelController;
@@ -139,6 +142,7 @@ const ui: UiElements = {
   floorLevel: requireElement("floorLevel"),
   floorHeightM: requireElement("floorHeightM"),
   heightM: requireElement("heightM"),
+  qualityPreset: requireElement("qualityPreset"),
   fovDeg: requireElement("fovDeg"),
   headingDeg: requireElement("headingDeg"),
   pitchDeg: requireElement("pitchDeg"),
@@ -186,6 +190,21 @@ function readStateFromInputs() {
   state.heading_deg = normalizeDeg(parseNumber(ui.headingDeg.value, state.heading_deg));
   state.pitch_deg = clamp(parseNumber(ui.pitchDeg.value, state.pitch_deg), -89, 89);
   state.base_map = ui.baseMap.value === "DefaultRoad" ? "DefaultRoad" : "OrthoJPG";
+}
+
+function parseQualityPreset(value: string): QualityPreset {
+  if (value === "ultra" || value === "high" || value === "medium" || value === "low") {
+    return value;
+  }
+  return defaultQualityPreset;
+}
+
+function applyQualityPresetFromInput(): void {
+  const qualityPreset = parseQualityPreset(ui.qualityPreset.value);
+  ui.qualityPreset.value = qualityPreset;
+  applyQualityPreset(debugState, qualityPreset);
+  syncDebugInputsFromState(ui, debugState, debugUiEnabled);
+  applyDebugSettingsLive({ viewer, tileset, debugState });
 }
 
 function syncUrlToState() {
@@ -582,6 +601,9 @@ function bindUi() {
   ui.heightM.addEventListener("change", () => {
     syncFloorFromHeightInput();
   });
+  ui.qualityPreset.addEventListener("change", () => {
+    applyQualityPresetFromInput();
+  });
   bindDebugControls({
     ui,
     enabled: debugUiEnabled,
@@ -597,6 +619,8 @@ function bindUi() {
 
 async function bootstrap() {
   Object.assign(state, parseStateFromQuery(window.location.search, DEFAULTS, SG_LIMITS));
+  ui.qualityPreset.value = defaultQualityPreset;
+  applyQualityPresetFromInput();
   setMiniMapInstructionText(ui, isMobileClient);
   locationController = createLocationController({
     ui,
