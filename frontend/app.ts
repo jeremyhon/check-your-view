@@ -245,6 +245,9 @@ function detachTilesetDiagnosticsEvents(): void {
 }
 
 function maybeLogTileDiagnostics(targetTileset: Cesium3DTileset, nowMs: number): void {
+  if (!debugUiEnabled) {
+    return;
+  }
   if (nowMs - tileDiagnosticsState.lastLogAtMs < TILE_DIAGNOSTICS_LOG_INTERVAL_MS) {
     return;
   }
@@ -287,6 +290,9 @@ function maybeLogTileDiagnostics(targetTileset: Cesium3DTileset, nowMs: number):
 }
 
 function renderTileDiagnostics(): void {
+  if (!debugUiEnabled) {
+    return;
+  }
   const now = performance.now();
   const activeTileset = tileset;
   if (!activeTileset) {
@@ -317,6 +323,9 @@ function renderTileDiagnostics(): void {
 }
 
 function attachTilesetDiagnosticsEvents(targetTileset: Cesium3DTileset): void {
+  if (!debugUiEnabled) {
+    return;
+  }
   if (tileDiagnosticsWatchedTileset === targetTileset) {
     return;
   }
@@ -459,18 +468,20 @@ async function initializeViewer() {
       setStatus(`JS error: ${event.message}`, true);
     }
   });
-  viewer.camera.changed.addEventListener(() => {
-    tileDiagnosticsState.cameraChangedEvents += 1;
-    tileDiagnosticsState.lastCameraChangeAtMs = performance.now();
-  });
-  viewer.camera.moveStart.addEventListener(() => {
-    tileDiagnosticsState.cameraMoveStartEvents += 1;
-    tileDiagnosticsState.lastCameraChangeAtMs = performance.now();
-  });
-  viewer.camera.moveEnd.addEventListener(() => {
-    tileDiagnosticsState.cameraMoveEndEvents += 1;
-    tileDiagnosticsState.lastCameraChangeAtMs = performance.now();
-  });
+  if (debugUiEnabled) {
+    viewer.camera.changed.addEventListener(() => {
+      tileDiagnosticsState.cameraChangedEvents += 1;
+      tileDiagnosticsState.lastCameraChangeAtMs = performance.now();
+    });
+    viewer.camera.moveStart.addEventListener(() => {
+      tileDiagnosticsState.cameraMoveStartEvents += 1;
+      tileDiagnosticsState.lastCameraChangeAtMs = performance.now();
+    });
+    viewer.camera.moveEnd.addEventListener(() => {
+      tileDiagnosticsState.cameraMoveEndEvents += 1;
+      tileDiagnosticsState.lastCameraChangeAtMs = performance.now();
+    });
+  }
 
   cameraController = createCameraController({
     viewer,
@@ -485,12 +496,14 @@ async function initializeViewer() {
   cameraController.installZoomControls();
   cameraController.applyFixedPose();
   syncZoomResetOverlay(100);
-  if (tileDiagnosticsIntervalId === null) {
-    tileDiagnosticsIntervalId = window.setInterval(() => {
-      renderTileDiagnostics();
-    }, TILE_DIAGNOSTICS_INTERVAL_MS);
+  if (debugUiEnabled) {
+    if (tileDiagnosticsIntervalId === null) {
+      tileDiagnosticsIntervalId = window.setInterval(() => {
+        renderTileDiagnostics();
+      }, TILE_DIAGNOSTICS_INTERVAL_MS);
+    }
+    renderTileDiagnostics();
   }
-  renderTileDiagnostics();
 
   sceneDataController = createSceneDataController({
     viewer,
@@ -501,8 +514,10 @@ async function initializeViewer() {
     onTilesetLoaded: (nextTileset: Cesium3DTileset) => {
       tileset = nextTileset;
       window.__tileset = nextTileset;
-      attachTilesetDiagnosticsEvents(nextTileset);
-      renderTileDiagnostics();
+      if (debugUiEnabled) {
+        attachTilesetDiagnosticsEvents(nextTileset);
+        renderTileDiagnostics();
+      }
     },
   });
   locationController.initializeMiniMap();
