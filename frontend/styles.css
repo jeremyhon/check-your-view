@@ -62,7 +62,7 @@ body {
   transform: translateX(-50%);
   width: min(560px, calc(100vw - 420px));
   pointer-events: none;
-  z-index: 1180;
+  z-index: 1080;
 }
 
 .compass-window {
