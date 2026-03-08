@@ -23,11 +23,12 @@ export function createSceneDataController({
   applyDebugSettingsToTileset,
   onTilesetLoaded,
 }: SceneDataControllerOptions): SceneDataController {
+  const VIEWER_BASEMAP = "OrthoJPG";
   let tileset: Cesium3DTileset | undefined;
   let loadedDataKey = "";
 
   function baseMapUrl(): string {
-    return `${state.proxy_base}/maps/tiles/${state.base_map}/{z}/{x}/{y}.png`;
+    return `${state.proxy_base}/maps/tiles/${VIEWER_BASEMAP}/{z}/{x}/{y}.png`;
   }
 
   function refreshBasemapLayer(): void {
@@ -56,7 +57,7 @@ export function createSceneDataController({
   }
 
   async function ensureSceneDataLoaded(force = false): Promise<void> {
-    const dataKey = `${state.proxy_base}|${state.base_map}`;
+    const dataKey = state.proxy_base;
     if (!force && dataKey === loadedDataKey && tileset) {
       return;
     }

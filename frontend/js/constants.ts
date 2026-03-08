@@ -44,7 +44,6 @@ export const DEFAULTS: ViewState = {
   heading_deg: -71.8,
   pitch_deg: -9.0,
   fov_deg: 90,
-  base_map: "OrthoJPG",
 };
 
 export const DEBUG_DEFAULTS: DebugState = DISABLE_3D_OPTIMIZATIONS

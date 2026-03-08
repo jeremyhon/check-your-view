@@ -1,7 +1,5 @@
 import type { Cesium3DTileset } from "cesium";
 
-export type BaseMap = "OrthoJPG" | "DefaultRoad";
-
 export interface ViewState {
   proxy_base: string;
   lat: number;
@@ -13,7 +11,6 @@ export interface ViewState {
   heading_deg: number;
   pitch_deg: number;
   fov_deg: number;
-  base_map: BaseMap;
 }
 
 export interface DebugState {
@@ -73,7 +70,6 @@ export interface UiElements {
   fovDeg: HTMLInputElement;
   headingDeg: HTMLInputElement;
   pitchDeg: HTMLInputElement;
-  baseMap: HTMLSelectElement;
   debugPanel: HTMLDetailsElement;
   debugFogEnabled: HTMLInputElement;
   debugDynamicSse: HTMLInputElement;

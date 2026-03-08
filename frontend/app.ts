@@ -146,7 +146,6 @@ const ui: UiElements = {
   fovDeg: requireElement("fovDeg"),
   headingDeg: requireElement("headingDeg"),
   pitchDeg: requireElement("pitchDeg"),
-  baseMap: requireElement("baseMap"),
   debugPanel: requireElement("debugPanel"),
   debugFogEnabled: requireElement("debugFogEnabled"),
   debugDynamicSse: requireElement("debugDynamicSse"),
@@ -173,7 +172,6 @@ function syncInputsFromState() {
   ui.fovDeg.value = String(state.fov_deg);
   ui.headingDeg.value = String(state.heading_deg);
   ui.pitchDeg.value = String(state.pitch_deg);
-  ui.baseMap.value = state.base_map;
   compassOverlayController.syncHeading(state.heading_deg);
   syncDebugInputsFromState(ui, debugState, debugUiEnabled);
 }
@@ -189,7 +187,6 @@ function readStateFromInputs() {
   state.fov_deg = clamp(parseNumber(ui.fovDeg.value, state.fov_deg), 20, 120);
   state.heading_deg = normalizeDeg(parseNumber(ui.headingDeg.value, state.heading_deg));
   state.pitch_deg = clamp(parseNumber(ui.pitchDeg.value, state.pitch_deg), -89, 89);
-  state.base_map = ui.baseMap.value === "DefaultRoad" ? "DefaultRoad" : "OrthoJPG";
 }
 
 function parseQualityPreset(value: string): QualityPreset {

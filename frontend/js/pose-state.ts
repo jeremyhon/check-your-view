@@ -81,9 +81,6 @@ export function parseStateFromQuery(
   const fovCandidate = parseNumber(params.get("fov_deg"), defaults.fov_deg);
   nextState.fov_deg = fovCandidate > 0 ? clamp(fovCandidate, 20, 120) : defaults.fov_deg;
 
-  const candidateBaseMap = params.get("base_map") || defaults.base_map;
-  nextState.base_map = candidateBaseMap === "DefaultRoad" ? "DefaultRoad" : "OrthoJPG";
-
   normalizeLegacyDegeneratePose(nextState, defaults);
   return nextState;
 }
@@ -99,7 +96,6 @@ export function serializeStateToQuery(state: ViewState): URLSearchParams {
   params.set("heading_deg", state.heading_deg.toFixed(1));
   params.set("pitch_deg", state.pitch_deg.toFixed(1));
   params.set("fov_deg", state.fov_deg.toFixed(1));
-  params.set("base_map", state.base_map);
   return params;
 }
 
