@@ -167,24 +167,14 @@ body {
 
 .dpad-overlay {
   position: fixed;
-  top: 58px;
-  right: 12px;
+  bottom: 46px;
+  left: 12px;
   z-index: 1200;
   pointer-events: auto;
   border: 1px solid rgba(210, 225, 240, 0.86);
   border-radius: 12px;
   background: rgba(9, 20, 31, 0.42);
   padding: 8px;
-}
-
-.dpad-label {
-  margin: 0 0 6px;
-  text-align: center;
-  color: #f6fbff;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
 }
 
 .dpad-grid {
@@ -196,19 +186,6 @@ body {
 .dpad-empty {
   width: 34px;
   height: 34px;
-}
-
-.dpad-center {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border: 1px solid rgba(210, 225, 240, 0.35);
-  border-radius: 8px;
-  color: #f6fbff;
-  font-size: 11px;
-  font-weight: 700;
 }
 
 .dpad-grid button {
@@ -531,8 +508,8 @@ button#copyBtn {
   }
 
   .dpad-overlay {
-    top: 56px;
-    right: 10px;
+    bottom: 42px;
+    left: 10px;
     padding: 7px;
   }
 
@@ -542,7 +519,6 @@ button#copyBtn {
   }
 
   .dpad-empty,
-  .dpad-center,
   .dpad-grid button {
     width: 32px;
     height: 32px;
