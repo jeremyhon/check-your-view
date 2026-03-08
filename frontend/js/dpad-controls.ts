@@ -11,14 +11,19 @@ type DpadControlsOptions = {
   onStop?: () => void;
 };
 
+export type DpadControlsController = {
+  dispose: () => void;
+};
+
 export function bindDpadControls({
   bindings,
   repeatIntervalMs,
   onMove,
   onStop,
-}: DpadControlsOptions): void {
+}: DpadControlsOptions): DpadControlsController {
   let repeatTimerId: number | null = null;
   let repeatPointerId: number | null = null;
+  const cleanupFns: Array<() => void> = [];
 
   function stopRepeat(pointerId?: number): void {
     if (pointerId !== undefined && repeatPointerId !== pointerId) {
@@ -36,7 +41,7 @@ export function bindDpadControls({
   }
 
   function bindButton({ button, forwardMeters, rightMeters }: DpadBinding): void {
-    button.addEventListener("pointerdown", (event: PointerEvent) => {
+    const onPointerDown = (event: PointerEvent): void => {
       if (event.pointerType === "mouse" && event.button !== 0) {
         return;
       }
@@ -52,6 +57,10 @@ export function bindDpadControls({
         // Ignore pointer-capture failures on unsupported browsers.
       }
       event.preventDefault();
+    };
+    button.addEventListener("pointerdown", onPointerDown);
+    cleanupFns.push(() => {
+      button.removeEventListener("pointerdown", onPointerDown);
     });
 
     const endPointerRepeat = (event: PointerEvent): void => {
@@ -59,11 +68,20 @@ export function bindDpadControls({
     };
 
     button.addEventListener("pointerup", endPointerRepeat);
+    cleanupFns.push(() => {
+      button.removeEventListener("pointerup", endPointerRepeat);
+    });
     button.addEventListener("pointercancel", endPointerRepeat);
+    cleanupFns.push(() => {
+      button.removeEventListener("pointercancel", endPointerRepeat);
+    });
     button.addEventListener("lostpointercapture", endPointerRepeat);
+    cleanupFns.push(() => {
+      button.removeEventListener("lostpointercapture", endPointerRepeat);
+    });
 
     // Keep keyboard activation working (Enter/Space dispatch click with detail=0).
-    button.addEventListener("click", (event: MouseEvent) => {
+    const onClick = (event: MouseEvent): void => {
       if (event.detail !== 0) {
         event.preventDefault();
         return;
@@ -72,23 +90,55 @@ export function bindDpadControls({
       if (typeof onStop === "function") {
         onStop();
       }
+    };
+    button.addEventListener("click", onClick);
+    cleanupFns.push(() => {
+      button.removeEventListener("click", onClick);
     });
   }
 
   bindings.forEach(bindButton);
 
-  window.addEventListener("pointerup", (event: PointerEvent) => {
+  const onWindowPointerUp = (event: PointerEvent): void => {
     stopRepeat(event.pointerId);
+  };
+  window.addEventListener("pointerup", onWindowPointerUp);
+  cleanupFns.push(() => {
+    window.removeEventListener("pointerup", onWindowPointerUp);
   });
-  window.addEventListener("pointercancel", (event: PointerEvent) => {
+
+  const onWindowPointerCancel = (event: PointerEvent): void => {
     stopRepeat(event.pointerId);
+  };
+  window.addEventListener("pointercancel", onWindowPointerCancel);
+  cleanupFns.push(() => {
+    window.removeEventListener("pointercancel", onWindowPointerCancel);
   });
-  window.addEventListener("blur", () => {
+
+  const onWindowBlur = (): void => {
     stopRepeat();
+  };
+  window.addEventListener("blur", onWindowBlur);
+  cleanupFns.push(() => {
+    window.removeEventListener("blur", onWindowBlur);
   });
-  document.addEventListener("visibilitychange", () => {
+
+  const onVisibilityChange = (): void => {
     if (document.visibilityState !== "visible") {
       stopRepeat();
     }
+  };
+  document.addEventListener("visibilitychange", onVisibilityChange);
+  cleanupFns.push(() => {
+    document.removeEventListener("visibilitychange", onVisibilityChange);
   });
+
+  return {
+    dispose: (): void => {
+      stopRepeat();
+      cleanupFns.forEach((cleanupFn) => {
+        cleanupFn();
+      });
+    },
+  };
 }

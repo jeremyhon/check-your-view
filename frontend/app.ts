@@ -54,6 +54,7 @@ import type {
   UiElements,
   ViewState,
 } from "./js/types";
+import type { DpadControlsController } from "./js/dpad-controls";
 import type { TileDiagnosticsController } from "./js/tile-diagnostics";
 import type { UrlSyncController } from "./js/url-sync";
 
@@ -83,8 +84,8 @@ let compassOverlayController!: CompassOverlayController;
 let amenityLayerController: AmenityLayerController | null = null;
 let tileDiagnosticsController!: TileDiagnosticsController;
 let urlSyncController!: UrlSyncController;
+let dpadControlsController: DpadControlsController | null = null;
 let indoorVisibilityRetryTimerId: number | null = null;
-let poseUrlSyncDebounceTimerId: number | null = null;
 
 function requireElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
@@ -186,23 +187,6 @@ function applyQualityPresetFromInput(): void {
   applyDebugSettingsLive({ viewer, tileset, debugState });
 }
 
-function flushPoseUrlSync(): void {
-  if (poseUrlSyncDebounceTimerId !== null) {
-    window.clearTimeout(poseUrlSyncDebounceTimerId);
-    poseUrlSyncDebounceTimerId = null;
-  }
-  urlSyncController.syncNow();
-}
-
-function schedulePoseUrlSync(): void {
-  if (poseUrlSyncDebounceTimerId !== null) {
-    window.clearTimeout(poseUrlSyncDebounceTimerId);
-  }
-  poseUrlSyncDebounceTimerId = window.setTimeout(() => {
-    poseUrlSyncDebounceTimerId = null;
-    urlSyncController.syncNow();
-  }, D_PAD_URL_SYNC_DEBOUNCE_MS);
-}
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -388,7 +372,9 @@ async function initializeViewer() {
     state,
     cameraFarMeters: CAMERA_FAR_METERS,
     initialZoomPercent: state.zoom_pct,
-    onPoseChanged: schedulePoseUrlSync,
+    onPoseChanged: () => {
+      urlSyncController.syncDebounced();
+    },
     onOrientationInputUpdate: updateInputAngles,
     onZoomPercentChanged: (zoomPercent: number) => {
       state.zoom_pct = zoomPercent;
@@ -481,7 +467,10 @@ function bindUi() {
     }
     cameraController.resetZoom();
   });
-  bindDpadControls({
+  if (dpadControlsController) {
+    dpadControlsController.dispose();
+  }
+  dpadControlsController = bindDpadControls({
     bindings: [
       { button: ui.dpadForwardBtn, forwardMeters: D_PAD_STEP_METERS, rightMeters: 0 },
       { button: ui.dpadBackwardBtn, forwardMeters: -D_PAD_STEP_METERS, rightMeters: 0 },
@@ -490,7 +479,9 @@ function bindUi() {
     ],
     repeatIntervalMs: D_PAD_HOLD_REPEAT_MS,
     onMove: handleDpadMove,
-    onStop: flushPoseUrlSync,
+    onStop: () => {
+      urlSyncController.syncNow();
+    },
   });
   ui.floorLevel.addEventListener("change", () => {
     syncHeightFromFloorInputs();
@@ -517,15 +508,22 @@ function bindUi() {
   });
 }
 
-async function bootstrap() {
+function initializeStateFromQuery(): void {
   Object.assign(state, parseStateFromQuery(window.location.search, DEFAULTS, SG_LIMITS));
-  urlSyncController = createUrlSyncController({ state });
+}
+
+function setupCoreControllers(): void {
+  urlSyncController = createUrlSyncController({
+    state,
+    debounceMs: D_PAD_URL_SYNC_DEBOUNCE_MS,
+  });
   tileDiagnosticsController = createTileDiagnosticsController({
     ui,
     enabled: debugUiEnabled,
   });
-  ui.qualityPreset.value = defaultQualityPreset;
-  applyQualityPresetFromInput();
+}
+
+function setupUiControllers(): void {
   setMiniMapInstructionText(ui, isMobileClient);
   locationController = createLocationController({
     ui,
@@ -548,13 +546,25 @@ async function bootstrap() {
       }
     },
   });
-  panelController.initializePanelCollapsedState();
-  setDebugPanelVisibility(ui, debugUiEnabled);
   compassOverlayController = createCompassOverlay({
     track: ui.compassTrack,
     readout: ui.compassReadout,
   });
+}
+
+function setupInitialUiState(): void {
+  ui.qualityPreset.value = defaultQualityPreset;
+  applyQualityPresetFromInput();
+  panelController.initializePanelCollapsedState();
+  setDebugPanelVisibility(ui, debugUiEnabled);
   syncInputsFromState();
+}
+
+async function bootstrap() {
+  initializeStateFromQuery();
+  setupCoreControllers();
+  setupUiControllers();
+  setupInitialUiState();
   bindUi();
   try {
     await initializeViewer();
