@@ -78,7 +78,8 @@ export interface UiElements {
   debugLoadSiblings: HTMLInputElement;
   debugMaxSse: HTMLInputElement;
   debugCullMultiplier: HTMLInputElement;
-  panelToggleBtn: HTMLButtonElement;
+  panelCloseBtn: HTMLButtonElement;
+  panelOpenBtn: HTMLButtonElement;
   applyBtn: HTMLButtonElement;
   copyBtn: HTMLButtonElement;
   status: HTMLElement;
@@ -89,7 +90,7 @@ export interface CompassOverlayController {
 }
 
 export interface PanelController {
-  bindPanelToggle(): void;
+  bindPanelToggleButtons(): void;
   initializePanelCollapsedState(): void;
 }
 

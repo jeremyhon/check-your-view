@@ -100,7 +100,8 @@ const ui: UiElements = {
   debugLoadSiblings: requireElement("debugLoadSiblings"),
   debugMaxSse: requireElement("debugMaxSse"),
   debugCullMultiplier: requireElement("debugCullMultiplier"),
-  panelToggleBtn: requireElement("panelToggleBtn"),
+  panelCloseBtn: requireElement("panelCloseBtn"),
+  panelOpenBtn: requireElement("panelOpenBtn"),
   applyBtn: requireElement("applyBtn"),
   copyBtn: requireElement("copyBtn"),
   status: requireElement("status"),
@@ -281,7 +282,7 @@ async function copyShareLink() {
 }
 
 function bindUi() {
-  panelController.bindPanelToggle();
+  panelController.bindPanelToggleButtons();
   locationController.bindSearchControls();
   ui.applyBtn.addEventListener("click", () => {
     void applyPoseFromForm();

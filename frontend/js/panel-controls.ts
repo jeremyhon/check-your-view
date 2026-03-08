@@ -25,14 +25,8 @@ export function createPanelController({
   function applyPanelCollapsedState(collapsed: boolean, persist = true): void {
     panelCollapsed = Boolean(collapsed);
     document.body.classList.toggle("panel-collapsed", panelCollapsed);
-    if (ui.panelToggleBtn) {
-      ui.panelToggleBtn.textContent = panelCollapsed ? "Show Panel" : "Hide Panel";
-      ui.panelToggleBtn.setAttribute(
-        "aria-label",
-        panelCollapsed ? "Show controls panel" : "Hide controls panel",
-      );
-      ui.panelToggleBtn.setAttribute("aria-expanded", String(!panelCollapsed));
-    }
+    ui.panelCloseBtn.setAttribute("aria-expanded", String(!panelCollapsed));
+    ui.panelOpenBtn.setAttribute("aria-expanded", String(!panelCollapsed));
     if (persist) {
       try {
         window.localStorage.setItem(storageKey, panelCollapsed ? "1" : "0");
@@ -58,17 +52,17 @@ export function createPanelController({
     applyPanelCollapsedState(collapsed, false);
   }
 
-  function bindPanelToggle(): void {
-    if (!ui.panelToggleBtn) {
-      return;
-    }
-    ui.panelToggleBtn.addEventListener("click", () => {
-      applyPanelCollapsedState(!panelCollapsed);
+  function bindPanelToggleButtons(): void {
+    ui.panelCloseBtn.addEventListener("click", () => {
+      applyPanelCollapsedState(true);
+    });
+    ui.panelOpenBtn.addEventListener("click", () => {
+      applyPanelCollapsedState(false);
     });
   }
 
   return {
-    bindPanelToggle,
+    bindPanelToggleButtons,
     initializePanelCollapsedState,
   };
 }

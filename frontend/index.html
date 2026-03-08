@@ -17,7 +17,9 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <button id="panelToggleBtn" type="button" aria-expanded="true">Hide Panel</button>
+    <button id="panelOpenBtn" type="button" aria-label="Show controls panel" aria-expanded="true">
+      👁️
+    </button>
     <section id="compassOverlay" class="compass-overlay" aria-live="polite" aria-label="Compass">
       <div class="compass-window" aria-hidden="true">
         <div id="compassTrack" class="compass-track"></div>
@@ -27,6 +29,14 @@
     </section>
     <div id="app">
       <aside id="panel">
+        <button
+          id="panelCloseBtn"
+          type="button"
+          aria-label="Hide controls panel"
+          aria-expanded="true"
+        >
+          ×
+        </button>
         <h1>Check Your View</h1>
         <p class="muted">A quick way to verify the view from the flat of your dreams.</p>
 
