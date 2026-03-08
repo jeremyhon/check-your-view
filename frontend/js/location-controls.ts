@@ -1,7 +1,13 @@
 /* global L */
 
 import { parseNumber } from "./utils";
-import type { LeafletMouseEvent, Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
+import type {
+  LatLngExpression,
+  LeafletMouseEvent,
+  Map as LeafletMap,
+  Marker as LeafletMarker,
+  Polygon as LeafletPolygon,
+} from "leaflet";
 import type {
   LocationController,
   OneMapSearchPayload,
@@ -30,11 +36,66 @@ export function createLocationController({
 }: LocationControllerOptions): LocationController {
   let miniMap: LeafletMap | null = null;
   let miniMarker: LeafletMarker | null = null;
+  let headingCone: LeafletPolygon | null = null;
   let searchDebounceId: number | null = null;
   let searchAbortController: AbortController | null = null;
 
   function miniMapBaseUrl(): string {
     return `${state.proxy_base}/maps/tiles/Default/{z}/{x}/{y}.png`;
+  }
+
+  function clamp(value: number, min: number, max: number): number {
+    return Math.min(Math.max(value, min), max);
+  }
+
+  function destinationPoint(
+    latDeg: number,
+    lngDeg: number,
+    bearingDeg: number,
+    distanceMeters: number,
+  ): [number, number] {
+    const earthRadiusMeters = 6_371_000;
+    const angularDistance = distanceMeters / earthRadiusMeters;
+    const latRad = (latDeg * Math.PI) / 180;
+    const lngRad = (lngDeg * Math.PI) / 180;
+    const bearingRad = (bearingDeg * Math.PI) / 180;
+
+    const sinLat = Math.sin(latRad);
+    const cosLat = Math.cos(latRad);
+    const sinAngular = Math.sin(angularDistance);
+    const cosAngular = Math.cos(angularDistance);
+
+    const destLatRad = Math.asin(sinLat * cosAngular + cosLat * sinAngular * Math.cos(bearingRad));
+    const destLngRad =
+      lngRad +
+      Math.atan2(
+        Math.sin(bearingRad) * sinAngular * cosLat,
+        cosAngular - sinLat * Math.sin(destLatRad),
+      );
+
+    return [(destLatRad * 180) / Math.PI, (destLngRad * 180) / Math.PI];
+  }
+
+  function headingConePoints(): LatLngExpression[] {
+    const lat = state.lat;
+    const lng = state.lng;
+    const heading = state.heading_deg;
+    const halfAngle = clamp(state.fov_deg / 2, 10, 50);
+    const coneLengthMeters = 240;
+    const left = destinationPoint(lat, lng, heading - halfAngle, coneLengthMeters);
+    const right = destinationPoint(lat, lng, heading + halfAngle, coneLengthMeters);
+    return [
+      [lat, lng],
+      [left[0], left[1]],
+      [right[0], right[1]],
+    ];
+  }
+
+  function syncHeadingCone(): void {
+    if (!headingCone) {
+      return;
+    }
+    headingCone.setLatLngs([headingConePoints()]);
   }
 
   function syncMiniMapFromState(recenter = false): void {
@@ -43,6 +104,7 @@ export function createLocationController({
     }
     const center: [number, number] = [state.lat, state.lng];
     miniMarker.setLatLng(center);
+    syncHeadingCone();
     if (recenter) {
       miniMap.setView(center, miniMap.getZoom(), { animate: false });
     }
@@ -91,6 +153,14 @@ export function createLocationController({
 
     miniMap.setView([state.lat, state.lng], 17);
     miniMarker = L.marker([state.lat, state.lng], { draggable: true }).addTo(miniMap);
+    headingCone = L.polygon(headingConePoints(), {
+      interactive: false,
+      color: "#0b5cab",
+      weight: 1.5,
+      opacity: 0.9,
+      fillColor: "#0b5cab",
+      fillOpacity: 0.18,
+    }).addTo(miniMap);
 
     miniMap.on("click", (event: LeafletMouseEvent) => {
       if (!miniMarker) {

@@ -421,6 +421,7 @@ function updateInputAngles() {
   ui.headingDeg.value = state.heading_deg.toFixed(1);
   ui.pitchDeg.value = state.pitch_deg.toFixed(1);
   compassOverlayController.syncHeading(state.heading_deg);
+  locationController.syncMiniMapFromState();
 }
 
 function syncFloorAndHeightFromInputs(mode: FloorSyncMode): void {
