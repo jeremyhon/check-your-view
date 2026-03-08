@@ -161,6 +161,22 @@ Run production smoke checks:
 pnpm run smoke:test
 ```
 
+The script validates:
+
+- Pages root HTML and expected title/subtitle
+- frontend bundle asset reachable from current `index.html`
+- Worker tileset endpoint
+- Worker imagery tile endpoint
+- Worker search endpoint
+
+Optional overrides:
+
+```bash
+SITE_URL="https://<pages-domain>" \
+PROXY_URL="https://<worker-domain>" \
+pnpm run smoke:test
+```
+
 ## OSM Amenity Ingestion
 
 Generate a normalized OSM amenity dataset (Singapore) for these 6 categories:
@@ -186,22 +202,6 @@ Optional flags:
 
 ```bash
 pnpm run amenities:ingest -- --out /tmp/osm-amenities.json --compact
-```
-
-The script validates:
-
-- Pages root HTML and expected title/subtitle
-- frontend bundle asset reachable from current `index.html`
-- Worker tileset endpoint
-- Worker imagery tile endpoint
-- Worker search endpoint
-
-Optional overrides:
-
-```bash
-SITE_URL="https://<pages-domain>" \
-PROXY_URL="https://<worker-domain>" \
-pnpm run smoke:test
 ```
 
 ## Linting And Formatting
