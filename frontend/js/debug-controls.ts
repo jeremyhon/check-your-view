@@ -16,6 +16,9 @@ type DebugControlsBindOptions = {
   onChange?: (controlId: DebugControlId) => void;
 };
 
+const DIAGNOSTIC_CACHE_BYTES = 768 * 1024 * 1024;
+const DIAGNOSTIC_OVERFLOW_BYTES = 768 * 1024 * 1024;
+
 export function setDebugPanelVisibility(ui: UiElements, enabled: boolean): void {
   if (!ui.debugPanel) {
     return;
@@ -78,12 +81,12 @@ export function applyDebugSettingsToTileset(
     ? {
         ...debugState,
         dynamicScreenSpaceError: false,
-        maximumScreenSpaceError: 1,
+        maximumScreenSpaceError: debugState.maximumScreenSpaceError,
         skipLevelOfDetail: false,
         cullWithChildrenBounds: false,
         cullRequestsWhileMoving: false,
         cullRequestsWhileMovingMultiplier: 1,
-        loadSiblings: true,
+        loadSiblings: false,
         foveatedScreenSpaceError: false,
       }
     : debugState;
@@ -104,6 +107,11 @@ export function applyDebugSettingsToTileset(
     effectiveDebugState.cullRequestsWhileMovingMultiplier;
   targetTileset.foveatedScreenSpaceError = effectiveDebugState.foveatedScreenSpaceError;
   targetTileset.loadSiblings = effectiveDebugState.loadSiblings;
+  targetTileset.cacheBytes = Math.max(targetTileset.cacheBytes, DIAGNOSTIC_CACHE_BYTES);
+  targetTileset.maximumCacheOverflowBytes = Math.max(
+    targetTileset.maximumCacheOverflowBytes,
+    DIAGNOSTIC_OVERFLOW_BYTES,
+  );
   targetTileset.preloadWhenHidden = DISABLE_3D_OPTIMIZATIONS;
   targetTileset.preloadFlightDestinations = DISABLE_3D_OPTIMIZATIONS;
   tilesetWithInternalCulling.immediatelyLoadDesiredLevelOfDetail = DISABLE_3D_OPTIMIZATIONS;
