@@ -161,6 +161,33 @@ Run production smoke checks:
 pnpm run smoke:test
 ```
 
+## OSM Amenity Ingestion
+
+Generate a normalized OSM amenity dataset (Singapore) for these 6 categories:
+
+- `mrt_lrt`
+- `primary_schools`
+- `preschools`
+- `shopping_malls`
+- `supermarkets_wet_markets`
+- `hawker_food_courts`
+
+Run:
+
+```bash
+pnpm run amenities:ingest
+```
+
+Default output path:
+
+- `data/amenities/osm-amenities-latest.json`
+
+Optional flags:
+
+```bash
+pnpm run amenities:ingest -- --out /tmp/osm-amenities.json --compact
+```
+
 The script validates:
 
 - Pages root HTML and expected title/subtitle
