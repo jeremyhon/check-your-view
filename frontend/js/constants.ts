@@ -42,7 +42,7 @@ export const DEFAULTS: ViewState = {
   floor_height_m: 3,
   heading_deg: -71.8,
   pitch_deg: -9.0,
-  fov_deg: 60,
+  fov_deg: 90,
   base_map: "OrthoJPG",
 };
 
