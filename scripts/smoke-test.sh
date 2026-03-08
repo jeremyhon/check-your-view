@@ -7,6 +7,7 @@ SEARCH_PATH="${SEARCH_PATH:-/api/common/elastic/search?searchVal=Marina%20Bay%20
 TILESET_PATH="${TILESET_PATH:-/omapi/tilesets/sg_noterrain_tiles/tileset.json}"
 IMAGERY_PATH="${IMAGERY_PATH:-/maps/tiles/OrthoJPG/17/103350/65068.png}"
 AMENITIES_PATH="${AMENITIES_PATH:-/api/amenities}"
+AMENITIES_DATASET_URL="${AMENITIES_DATASET_URL:-${SITE_URL}/data/amenities/osm-amenities-latest.json}"
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
@@ -60,6 +61,11 @@ search_status="$(curl -sS -o "${tmpdir}/search.json" -w "%{http_code}" "${PROXY_
 [[ "${search_status}" == "200" ]] || fail "search endpoint returned ${search_status}"
 rg -q '"results"' "${tmpdir}/search.json" || fail "search payload missing results"
 ok "search endpoint is healthy"
+
+dataset_status="$(curl -sS -o "${tmpdir}/amenities-dataset.json" -w "%{http_code}" "${AMENITIES_DATASET_URL}")"
+[[ "${dataset_status}" == "200" ]] || fail "amenities dataset URL returned ${dataset_status}"
+rg -q '"amenities"' "${tmpdir}/amenities-dataset.json" || fail "amenities dataset missing amenities array"
+ok "amenities dataset file is reachable"
 
 amenities_status="$(curl -sS -o "${tmpdir}/amenities.json" -w "%{http_code}" "${PROXY_URL}${AMENITIES_PATH}")"
 [[ "${amenities_status}" == "200" ]] || fail "amenities endpoint returned ${amenities_status}"

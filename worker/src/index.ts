@@ -11,7 +11,7 @@ const ALLOWED_METHODS = "GET,HEAD,OPTIONS";
 const ALLOWED_HEADERS = "Content-Type,Authorization,Range,If-Modified-Since,If-None-Match";
 type CorsHeaders = Record<string, string>;
 const TRANSPARENT_PIXEL_BASE64 =
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=";
+  "iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAYAAABccqhmAAABFUlEQVR42u3BMQEAAADCoPVP7WsIoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeAMBPAAB2ClDBAAAAABJRU5ErkJggg==";
 
 type Env = {
   ONEMAP_BASE_URL: string;
@@ -218,6 +218,13 @@ async function handleImageryRoute(
   if (!upstreamResponse.ok) {
     return createTransparentTileResponse(request.method, corsHeaders);
   }
+  const upstreamContentType = (upstreamResponse.headers.get("content-type") || "").toLowerCase();
+  if (upstreamContentType && !upstreamContentType.startsWith("image/")) {
+    return createTransparentTileResponse(request.method, corsHeaders);
+  }
+  if (upstreamResponse.headers.get("content-length") === "0") {
+    return createTransparentTileResponse(request.method, corsHeaders);
+  }
   if (request.method === "GET") {
     if (!upstreamResponse.body) {
       return createTransparentTileResponse(request.method, corsHeaders);
@@ -323,6 +330,18 @@ async function handleAmenitiesRoute(
       {
         error: "Amenities upstream returned non-OK status",
         status: upstreamResponse.status,
+      },
+      corsHeaders,
+    );
+  }
+
+  const upstreamContentType = upstreamResponse.headers.get("content-type");
+  if (upstreamContentType && !upstreamContentType.toLowerCase().includes("json")) {
+    return createJsonResponse(
+      502,
+      {
+        error: "Amenities upstream did not return JSON content",
+        contentType: upstreamContentType,
       },
       corsHeaders,
     );

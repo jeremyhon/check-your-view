@@ -202,7 +202,7 @@ pnpm run amenities:ingest
 
 Default output path:
 
-- `frontend/data/amenities/osm-amenities-latest.json`
+- `frontend/public/data/amenities/osm-amenities-latest.json`
 
 Optional flags:
 
