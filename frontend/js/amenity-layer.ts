@@ -7,6 +7,7 @@ import type {
   UiElements,
   ViewState,
 } from "./types";
+import { isMobileClient } from "./constants";
 
 type AmenityLayerOptions = {
   viewer: Viewer;
@@ -81,6 +82,13 @@ const DEFAULT_CATEGORY_ENABLED: Record<AmenityCategoryId, boolean> = {
 
 const TOGGLE_STORAGE_KEY = "check-your-view:amenity-toggles";
 const STATIC_DATASET_PATH = "/data/amenities/osm-amenities-latest.json";
+const MOBILE_LABEL_CAP = 20;
+
+type RenderableAmenity = {
+  category: AmenityCategoryId;
+  point: AmenityPoint;
+  distanceM: number;
+};
 
 function haversineMeters(aLat: number, aLng: number, bLat: number, bLng: number): number {
   const toRad = Math.PI / 180;
@@ -223,53 +231,58 @@ export function createAmenityLayer({
     ui.amenitySummary.textContent = text;
   }
 
-  function renderCategoryAmenities(category: AmenityCategoryId): number {
+  function collectCategoryAmenities(category: AmenityCategoryId): RenderableAmenity[] {
     const config = CATEGORY_RENDER_CONFIG[category];
     const points = amenitiesByCategory.get(category) || [];
     if (points.length === 0) {
-      return 0;
+      return [];
     }
     const multiplier = zoomLimitMultiplier(state.zoom_pct);
     const limit = Math.max(1, Math.round(config.baseLimit * multiplier));
-    const nearby = points
+    return points
       .map((point) => ({
         point,
         distanceM: haversineMeters(state.lat, state.lng, point.lat, point.lng),
       }))
       .filter((row) => row.distanceM <= config.radiusM)
       .sort((a, b) => a.distanceM - b.distanceM)
-      .slice(0, limit);
+      .slice(0, limit)
+      .map((row) => ({
+        category,
+        point: row.point,
+        distanceM: row.distanceM,
+      }));
+  }
 
+  function renderAmenityRow({ category, point, distanceM }: RenderableAmenity): void {
+    const config = CATEGORY_RENDER_CONFIG[category];
     const color = Cesium.Color.fromCssColorString(config.color);
     const background = color.withAlpha(0.78);
-    nearby.forEach(({ point, distanceM }) => {
-      dataSource.entities.add({
-        id: `amenity:${point.id}`,
-        position: Cesium.Cartesian3.fromDegrees(point.lng, point.lat, 1),
-        point: {
-          pixelSize: 6,
-          color,
-          outlineColor: Cesium.Color.WHITE,
-          outlineWidth: 1,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        },
-        label: {
-          text: `${point.name} (${formatDistanceKilometers(distanceM)})`,
-          font: "12px 'Segoe UI', sans-serif",
-          style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-          fillColor: Cesium.Color.WHITE,
-          outlineColor: Cesium.Color.BLACK,
-          outlineWidth: 2,
-          showBackground: true,
-          backgroundColor: background,
-          verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-          horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-          pixelOffset: new Cesium.Cartesian2(0, -12),
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        },
-      });
+    dataSource.entities.add({
+      id: `amenity:${point.id}`,
+      position: Cesium.Cartesian3.fromDegrees(point.lng, point.lat, 1),
+      point: {
+        pixelSize: 6,
+        color,
+        outlineColor: Cesium.Color.WHITE,
+        outlineWidth: 1,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+      label: {
+        text: `${point.name} (${formatDistanceKilometers(distanceM)})`,
+        font: "12px 'Segoe UI', sans-serif",
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        fillColor: Cesium.Color.WHITE,
+        outlineColor: Cesium.Color.BLACK,
+        outlineWidth: 2,
+        showBackground: true,
+        backgroundColor: background,
+        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+        horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+        pixelOffset: new Cesium.Cartesian2(0, -12),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
     });
-    return nearby.length;
   }
 
   function refresh(): void {
@@ -284,15 +297,25 @@ export function createAmenityLayer({
       return;
     }
 
-    let totalVisible = 0;
-    for (const category of enabled) {
-      totalVisible += renderCategoryAmenities(category);
+    const rowsToRender = enabled.flatMap((category) => collectCategoryAmenities(category));
+    let renderedRows = rowsToRender;
+    const mobileCapApplied = isMobileClient && rowsToRender.length > MOBILE_LABEL_CAP;
+    if (mobileCapApplied) {
+      renderedRows = rowsToRender
+        .slice()
+        .sort((a, b) => a.distanceM - b.distanceM)
+        .slice(0, MOBILE_LABEL_CAP);
     }
-    const summaryPrefix = `Showing ${totalVisible} labels`;
+    for (const row of renderedRows) {
+      renderAmenityRow(row);
+    }
+
+    const summaryPrefix = `Showing ${renderedRows.length} labels`;
     const enabledLabels = enabled
       .map((category) => CATEGORY_RENDER_CONFIG[category].label)
       .join(", ");
-    setSummary(`${summaryPrefix} (${enabledLabels})`);
+    const mobileCapSuffix = mobileCapApplied ? `, capped at ${MOBILE_LABEL_CAP} on mobile` : "";
+    setSummary(`${summaryPrefix}${mobileCapSuffix} (${enabledLabels})`);
     viewer.scene.requestRender();
   }
 

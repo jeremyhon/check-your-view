@@ -169,7 +169,7 @@ body {
   position: fixed;
   bottom: 46px;
   left: 12px;
-  z-index: 1200;
+  z-index: 1080;
   pointer-events: auto;
   border: 1px solid rgba(210, 225, 240, 0.86);
   border-radius: 12px;
@@ -235,6 +235,10 @@ body.panel-collapsed #panelOpenBtn {
   justify-content: center;
 }
 
+body.panel-collapsed #panelCloseBtn {
+  display: none;
+}
+
 body.panel-collapsed .compass-overlay {
   width: min(620px, calc(100vw - 176px));
 }
@@ -265,22 +269,12 @@ h1 {
   overflow: hidden;
 }
 
-.amenity-section {
+.amenity-panel {
   margin-top: 12px;
-  border: 1px solid #d8e1ea;
-  border-radius: 10px;
-  background: #fbfdff;
-  padding: 10px;
-}
-
-.amenity-section h2 {
-  margin: 0;
-  font-size: 13px;
-  color: #203344;
 }
 
 .amenity-summary {
-  margin: 6px 0 8px;
+  margin: 8px 0 8px;
   font-size: 12px;
   color: #425364;
 }
@@ -472,7 +466,7 @@ button#copyBtn {
   position: fixed;
   right: 6px;
   bottom: 2px;
-  z-index: 1000;
+  z-index: 1090;
   display: inline;
   padding: 0;
   color: #ffffff;
@@ -485,6 +479,11 @@ button#copyBtn {
 #repoLink:hover {
   text-decoration: underline;
   opacity: 1;
+}
+
+.cesium-viewer-bottom,
+.cesium-widget-credits {
+  z-index: 1090 !important;
 }
 
 @media (max-width: 960px) {
@@ -509,7 +508,8 @@ button#copyBtn {
 
   .dpad-overlay {
     bottom: 42px;
-    left: 10px;
+    left: auto;
+    right: 10px;
     padding: 7px;
   }
 
@@ -527,6 +527,15 @@ button#copyBtn {
   body.panel-collapsed .compass-overlay {
     left: 50%;
     width: min(500px, calc(100vw - 176px));
+  }
+
+  #panelCloseBtn {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    width: 38px;
+    height: 38px;
+    z-index: 1300;
   }
 
   .compass-window {
