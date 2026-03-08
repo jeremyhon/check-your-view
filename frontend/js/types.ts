@@ -83,7 +83,6 @@ export interface UiElements {
   dpadRightBtn: HTMLButtonElement;
   dpadBackwardBtn: HTMLButtonElement;
   zoomResetBtn: HTMLButtonElement;
-  indoorStatusBadge: HTMLElement;
   tileDiagnostics: HTMLElement;
   miniMap: HTMLElement;
   miniMapInstruction: HTMLElement;
