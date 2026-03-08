@@ -1,6 +1,7 @@
 const ALLOWED_PREFIXES = [
   "/omapi/tilesets/sg_noterrain_tiles/",
   "/maps/tiles/OrthoJPG/",
+  "/maps/tiles/Default/",
   "/maps/tiles/DefaultRoad/",
   "/api/common/elastic/search",
 ];
@@ -102,6 +103,9 @@ function normalizeContentType(pathname: string, upstreamContentType: string | nu
     return "image/jpeg";
   }
   if (pathname.startsWith("/maps/tiles/DefaultRoad/")) {
+    return "image/png";
+  }
+  if (pathname.startsWith("/maps/tiles/Default/")) {
     return "image/png";
   }
   return upstreamContentType;

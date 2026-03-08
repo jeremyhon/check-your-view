@@ -34,11 +34,7 @@ export function createLocationController({
   let searchAbortController: AbortController | null = null;
 
   function miniMapBaseUrl(): string {
-    return `${state.proxy_base}/maps/tiles/OrthoJPG/{z}/{x}/{y}.png`;
-  }
-
-  function miniMapOverlayUrl(): string {
-    return `${state.proxy_base}/maps/tiles/DefaultRoad/{z}/{x}/{y}.png`;
+    return `${state.proxy_base}/maps/tiles/Default/{z}/{x}/{y}.png`;
   }
 
   function syncMiniMapFromState(recenter = false): void {
@@ -92,15 +88,8 @@ export function createLocationController({
       bounds: singaporeBounds,
       noWrap: true,
     }).addTo(miniMap);
-    L.tileLayer(miniMapOverlayUrl(), {
-      minZoom: 11,
-      maxZoom: 19,
-      bounds: singaporeBounds,
-      noWrap: true,
-      opacity: 0.38,
-    }).addTo(miniMap);
 
-    miniMap.setView([state.lat, state.lng], 15);
+    miniMap.setView([state.lat, state.lng], 17);
     miniMarker = L.marker([state.lat, state.lng], { draggable: true }).addTo(miniMap);
 
     miniMap.on("click", (event: LeafletMouseEvent) => {

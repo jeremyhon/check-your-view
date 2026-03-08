@@ -16,6 +16,7 @@ OneMap 3D tileset access is referer-gated. Browser code cannot set arbitrary `Re
 
 - `/omapi/tilesets/sg_noterrain_tiles/...`
 - `/maps/tiles/OrthoJPG/...`
+- `/maps/tiles/Default/...`
 - `/maps/tiles/DefaultRoad/...`
 
 ## Setup
