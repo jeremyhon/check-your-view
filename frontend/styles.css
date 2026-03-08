@@ -165,6 +165,68 @@ body {
   text-shadow: none;
 }
 
+.dpad-overlay {
+  position: fixed;
+  top: 58px;
+  right: 12px;
+  z-index: 1200;
+  pointer-events: auto;
+  border: 1px solid rgba(210, 225, 240, 0.86);
+  border-radius: 12px;
+  background: rgba(9, 20, 31, 0.42);
+  padding: 8px;
+}
+
+.dpad-label {
+  margin: 0 0 6px;
+  text-align: center;
+  color: #f6fbff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.dpad-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 34px);
+  gap: 4px;
+}
+
+.dpad-empty {
+  width: 34px;
+  height: 34px;
+}
+
+.dpad-center {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(210, 225, 240, 0.35);
+  border-radius: 8px;
+  color: #f6fbff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.dpad-grid button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid rgba(210, 225, 240, 0.7);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f6fbff;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.dpad-grid button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
 .zoom-reset-overlay {
   position: fixed;
   top: 12px;
@@ -476,6 +538,24 @@ button#copyBtn {
   .compass-overlay {
     top: 12px;
     width: min(520px, calc(100vw - 176px));
+  }
+
+  .dpad-overlay {
+    top: 56px;
+    right: 10px;
+    padding: 7px;
+  }
+
+  .dpad-grid {
+    grid-template-columns: repeat(3, 32px);
+    gap: 3px;
+  }
+
+  .dpad-empty,
+  .dpad-center,
+  .dpad-grid button {
+    width: 32px;
+    height: 32px;
   }
 
   body.panel-collapsed .compass-overlay {

@@ -64,6 +64,7 @@ const SINGAPORE_RECTANGLE = Cesium.Rectangle.fromDegrees(
 );
 const INSIDE_BUILDING_HEADROOM_METERS = 2;
 const INDOOR_VISIBILITY_RETRY_DELAY_MS = 900;
+const D_PAD_STEP_METERS = 1;
 
 const state: ViewState = { ...DEFAULTS };
 const debugState: DebugState = { ...DEBUG_DEFAULTS };
@@ -92,6 +93,10 @@ function requireElement<T extends HTMLElement>(id: string): T {
 const ui: UiElements = {
   compassTrack: requireElement("compassTrack"),
   compassReadout: requireElement("compassReadout"),
+  dpadForwardBtn: requireElement("dpadForwardBtn"),
+  dpadLeftBtn: requireElement("dpadLeftBtn"),
+  dpadRightBtn: requireElement("dpadRightBtn"),
+  dpadBackwardBtn: requireElement("dpadBackwardBtn"),
   zoomResetBtn: requireElement("zoomResetBtn"),
   indoorStatusBadge: requireElement("indoorStatusBadge"),
   tileDiagnostics: requireElement("tileDiagnostics"),
@@ -132,9 +137,13 @@ const ui: UiElements = {
   status: requireElement("status"),
 };
 
+function syncPositionInputsFromState() {
+  ui.lat.value = state.lat.toFixed(6);
+  ui.lng.value = state.lng.toFixed(6);
+}
+
 function syncInputsFromState() {
-  ui.lat.value = String(state.lat);
-  ui.lng.value = String(state.lng);
+  syncPositionInputsFromState();
   ui.floorLevel.value = state.floor_level.toFixed(2);
   ui.floorHeightM.value = state.floor_height_m.toFixed(2);
   ui.heightM.value = String(state.height_m);
@@ -293,6 +302,15 @@ function handleLocationChanged(): void {
   urlSyncController.syncNow();
 }
 
+function handleDpadMove(forwardMeters: number, rightMeters: number): void {
+  if (!viewer) {
+    return;
+  }
+  cameraController.moveRelativeMeters(forwardMeters, rightMeters);
+  syncPositionInputsFromState();
+  locationController.syncMiniMapFromState();
+}
+
 async function initializeViewer() {
   Cesium.Ion.defaultAccessToken = "";
   viewer = new Cesium.Viewer("viewerContainer", {
@@ -443,6 +461,18 @@ function bindUi() {
       return;
     }
     cameraController.resetZoom();
+  });
+  ui.dpadForwardBtn.addEventListener("click", () => {
+    handleDpadMove(D_PAD_STEP_METERS, 0);
+  });
+  ui.dpadBackwardBtn.addEventListener("click", () => {
+    handleDpadMove(-D_PAD_STEP_METERS, 0);
+  });
+  ui.dpadLeftBtn.addEventListener("click", () => {
+    handleDpadMove(0, -D_PAD_STEP_METERS);
+  });
+  ui.dpadRightBtn.addEventListener("click", () => {
+    handleDpadMove(0, D_PAD_STEP_METERS);
   });
   ui.floorLevel.addEventListener("change", () => {
     syncHeightFromFloorInputs();
