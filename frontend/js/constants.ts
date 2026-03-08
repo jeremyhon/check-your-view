@@ -9,8 +9,7 @@ export const isMobileClient =
     window.matchMedia("(max-width: 960px), (pointer: coarse)").matches) ||
   /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
 export const debugUiEnabled = new URLSearchParams(window.location.search).get("debug") === "1";
-export const DISABLE_3D_OPTIMIZATIONS = false;
-export const defaultMaxSse = DISABLE_3D_OPTIMIZATIONS ? 8 : isMobileClient ? 24 : 8;
+export const defaultMaxSse = isMobileClient ? 24 : 8;
 export const CAMERA_FAR_METERS = 2_000_000;
 export const PANEL_COLLAPSE_STORAGE_KEY = "check-your-view:panel-collapsed";
 
@@ -46,38 +45,26 @@ export const DEFAULTS: ViewState = {
   fov_deg: 90,
 };
 
-export const DEBUG_DEFAULTS: DebugState = DISABLE_3D_OPTIMIZATIONS
+export const DEBUG_DEFAULTS: DebugState = isLocalHost
   ? {
-      fogEnabled: !isLocalHost,
-      dynamicScreenSpaceError: false,
+      fogEnabled: false,
+      dynamicScreenSpaceError: true,
       maximumScreenSpaceError: defaultMaxSse,
-      skipLevelOfDetail: false,
-      cullWithChildrenBounds: false,
-      cullRequestsWhileMoving: false,
-      cullRequestsWhileMovingMultiplier: 1,
+      skipLevelOfDetail: true,
+      cullWithChildrenBounds: true,
+      cullRequestsWhileMoving: true,
+      cullRequestsWhileMovingMultiplier: 8,
       loadSiblings: false,
-      foveatedScreenSpaceError: false,
+      foveatedScreenSpaceError: true,
     }
-  : isLocalHost
-    ? {
-        fogEnabled: false,
-        dynamicScreenSpaceError: true,
-        maximumScreenSpaceError: defaultMaxSse,
-        skipLevelOfDetail: true,
-        cullWithChildrenBounds: true,
-        cullRequestsWhileMoving: true,
-        cullRequestsWhileMovingMultiplier: 8,
-        loadSiblings: false,
-        foveatedScreenSpaceError: true,
-      }
-    : {
-        fogEnabled: true,
-        dynamicScreenSpaceError: true,
-        maximumScreenSpaceError: defaultMaxSse,
-        skipLevelOfDetail: true,
-        cullWithChildrenBounds: true,
-        cullRequestsWhileMoving: true,
-        cullRequestsWhileMovingMultiplier: 12,
-        loadSiblings: false,
-        foveatedScreenSpaceError: true,
-      };
+  : {
+      fogEnabled: true,
+      dynamicScreenSpaceError: true,
+      maximumScreenSpaceError: defaultMaxSse,
+      skipLevelOfDetail: true,
+      cullWithChildrenBounds: true,
+      cullRequestsWhileMoving: true,
+      cullRequestsWhileMovingMultiplier: 12,
+      loadSiblings: false,
+      foveatedScreenSpaceError: true,
+    };

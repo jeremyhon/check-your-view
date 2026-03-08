@@ -117,6 +117,25 @@ For local dev it defaults to `http://localhost:8787`.
 Amenity labels load from Worker endpoint `/api/amenities` first, then fall back to static
 file `/data/amenities/osm-amenities-latest.json` on the frontend host.
 
+## Tileset Cache Budgets
+
+The Cesium 3D tileset cache budgets are intentionally tuned to balance:
+
+- detail convergence speed,
+- cancellation/churn behavior,
+- and GPU/WebGL stability under sustained camera movement.
+
+Do not casually change these values. Treat them as performance-critical defaults and only
+adjust with diagnostics (`?debug=1`) plus before/after regression checks on both desktop and
+mobile devices.
+
+Current cache budgets by `Quality` preset:
+
+- `Ultra High`: `cacheBytes=1024MB`, `maximumCacheOverflowBytes=512MB`
+- `High`: `cacheBytes=768MB`, `maximumCacheOverflowBytes=384MB`
+- `Medium`: `cacheBytes=512MB`, `maximumCacheOverflowBytes=256MB`
+- `Low`: `cacheBytes=320MB`, `maximumCacheOverflowBytes=160MB`
+
 ## TypeScript Tooling
 
 - Source code is TypeScript across frontend and worker.

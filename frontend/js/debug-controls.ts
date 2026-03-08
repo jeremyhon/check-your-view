@@ -1,4 +1,3 @@
-import { DISABLE_3D_OPTIMIZATIONS, isMobileClient } from "./constants";
 import { clamp, parseNumber } from "./utils";
 import type { Cesium3DTileset, Viewer } from "cesium";
 import type { DebugControlId, DebugState, QualityPreset, UiElements } from "./types";
@@ -23,13 +22,7 @@ type TileCacheBudget = {
 };
 
 const BYTES_PER_MB = 1024 * 1024;
-const MOBILE_QUALITY_CACHE_MB: Record<QualityPreset, TileCacheBudget> = {
-  ultra: { cacheBytes: 512 * BYTES_PER_MB, overflowBytes: 256 * BYTES_PER_MB },
-  high: { cacheBytes: 384 * BYTES_PER_MB, overflowBytes: 192 * BYTES_PER_MB },
-  medium: { cacheBytes: 256 * BYTES_PER_MB, overflowBytes: 128 * BYTES_PER_MB },
-  low: { cacheBytes: 192 * BYTES_PER_MB, overflowBytes: 96 * BYTES_PER_MB },
-};
-const DESKTOP_QUALITY_CACHE_MB: Record<QualityPreset, TileCacheBudget> = {
+const QUALITY_CACHE_BUDGET: Record<QualityPreset, TileCacheBudget> = {
   ultra: { cacheBytes: 1024 * BYTES_PER_MB, overflowBytes: 512 * BYTES_PER_MB },
   high: { cacheBytes: 768 * BYTES_PER_MB, overflowBytes: 384 * BYTES_PER_MB },
   medium: { cacheBytes: 512 * BYTES_PER_MB, overflowBytes: 256 * BYTES_PER_MB },
@@ -37,7 +30,7 @@ const DESKTOP_QUALITY_CACHE_MB: Record<QualityPreset, TileCacheBudget> = {
 };
 
 export function getQualityCacheBudget(qualityPreset: QualityPreset): TileCacheBudget {
-  return (isMobileClient ? MOBILE_QUALITY_CACHE_MB : DESKTOP_QUALITY_CACHE_MB)[qualityPreset];
+  return QUALITY_CACHE_BUDGET[qualityPreset];
 }
 const QUALITY_PRESETS: Record<
   QualityPreset,
@@ -148,36 +141,22 @@ export function applyDebugSettingsToTileset(
   if (!targetTileset) {
     return;
   }
-  const effectiveDebugState: DebugState = DISABLE_3D_OPTIMIZATIONS
-    ? {
-        ...debugState,
-        dynamicScreenSpaceError: false,
-        maximumScreenSpaceError: debugState.maximumScreenSpaceError,
-        skipLevelOfDetail: false,
-        cullWithChildrenBounds: false,
-        cullRequestsWhileMoving: false,
-        cullRequestsWhileMovingMultiplier: 1,
-        loadSiblings: false,
-        foveatedScreenSpaceError: false,
-      }
-    : debugState;
   const tilesetWithInternalCulling = targetTileset as Cesium3DTileset & {
     cullWithChildrenBounds?: boolean;
     immediatelyLoadDesiredLevelOfDetail?: boolean;
     preferLeaves?: boolean;
   };
-  targetTileset.dynamicScreenSpaceError = effectiveDebugState.dynamicScreenSpaceError;
-  targetTileset.maximumScreenSpaceError = effectiveDebugState.maximumScreenSpaceError;
-  targetTileset.skipLevelOfDetail = effectiveDebugState.skipLevelOfDetail;
-  targetTileset.baseScreenSpaceError = effectiveDebugState.skipLevelOfDetail ? 1024 : 0;
-  targetTileset.skipScreenSpaceErrorFactor = effectiveDebugState.skipLevelOfDetail ? 16 : 1;
-  targetTileset.skipLevels = effectiveDebugState.skipLevelOfDetail ? 1 : 0;
-  tilesetWithInternalCulling.cullWithChildrenBounds = effectiveDebugState.cullWithChildrenBounds;
-  targetTileset.cullRequestsWhileMoving = effectiveDebugState.cullRequestsWhileMoving;
-  targetTileset.cullRequestsWhileMovingMultiplier =
-    effectiveDebugState.cullRequestsWhileMovingMultiplier;
-  targetTileset.foveatedScreenSpaceError = effectiveDebugState.foveatedScreenSpaceError;
-  targetTileset.loadSiblings = effectiveDebugState.loadSiblings;
+  targetTileset.dynamicScreenSpaceError = debugState.dynamicScreenSpaceError;
+  targetTileset.maximumScreenSpaceError = debugState.maximumScreenSpaceError;
+  targetTileset.skipLevelOfDetail = debugState.skipLevelOfDetail;
+  targetTileset.baseScreenSpaceError = debugState.skipLevelOfDetail ? 1024 : 0;
+  targetTileset.skipScreenSpaceErrorFactor = debugState.skipLevelOfDetail ? 16 : 1;
+  targetTileset.skipLevels = debugState.skipLevelOfDetail ? 1 : 0;
+  tilesetWithInternalCulling.cullWithChildrenBounds = debugState.cullWithChildrenBounds;
+  targetTileset.cullRequestsWhileMoving = debugState.cullRequestsWhileMoving;
+  targetTileset.cullRequestsWhileMovingMultiplier = debugState.cullRequestsWhileMovingMultiplier;
+  targetTileset.foveatedScreenSpaceError = debugState.foveatedScreenSpaceError;
+  targetTileset.loadSiblings = debugState.loadSiblings;
   const cacheBudget = getQualityCacheBudget(qualityPreset);
   targetTileset.cacheBytes = cacheBudget.cacheBytes;
   targetTileset.maximumCacheOverflowBytes = cacheBudget.overflowBytes;
