@@ -36,9 +36,9 @@ export function parseStateFromQuery(
   const params = new URLSearchParams(search);
   const nextState = { ...defaults };
 
-  nextState.proxy_base = params.get("proxy_base") || defaults.proxy_base;
   nextState.lat = parseNumber(params.get("lat"), defaults.lat);
   nextState.lng = parseNumber(params.get("lng"), defaults.lng);
+  nextState.zoom_pct = clamp(parseNumber(params.get("zoom_pct"), defaults.zoom_pct), 100, 400);
   if (!isWithinBounds(nextState.lat, nextState.lng, limits)) {
     nextState.lat = defaults.lat;
     nextState.lng = defaults.lng;
@@ -92,6 +92,7 @@ export function serializeStateToQuery(state: ViewState): URLSearchParams {
   const params = new URLSearchParams();
   params.set("lat", state.lat.toFixed(6));
   params.set("lng", state.lng.toFixed(6));
+  params.set("zoom_pct", state.zoom_pct.toFixed(1));
   params.set("floor_level", state.floor_level.toFixed(2));
   params.set("floor_height_m", state.floor_height_m.toFixed(2));
   params.set("height_m", state.height_m.toFixed(1));

@@ -6,6 +6,7 @@ export interface ViewState {
   proxy_base: string;
   lat: number;
   lng: number;
+  zoom_pct: number;
   height_m: number;
   floor_level: number;
   floor_height_m: number;

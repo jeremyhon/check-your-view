@@ -37,6 +37,7 @@ export const DEFAULTS: ViewState = {
   proxy_base: defaultProxyBase,
   lat: 1.284048,
   lng: 103.860691,
+  zoom_pct: 100,
   height_m: 195.5,
   floor_level: 65.17,
   floor_height_m: 3,

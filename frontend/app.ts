@@ -208,7 +208,12 @@ function applyQualityPresetFromInput(): void {
 }
 
 function syncUrlToState() {
-  window.history.replaceState({}, "", buildShareUrlFromState(state, window.location));
+  const url = new URL(buildShareUrlFromState(state, window.location));
+  const currentParams = new URLSearchParams(window.location.search);
+  if (currentParams.get("debug") === "1") {
+    url.searchParams.set("debug", "1");
+  }
+  window.history.replaceState({}, "", url.toString());
 }
 
 function errorMessage(error: unknown): string {
@@ -506,15 +511,19 @@ async function initializeViewer() {
     viewer,
     state,
     cameraFarMeters: CAMERA_FAR_METERS,
+    initialZoomPercent: state.zoom_pct,
     onPoseChanged: syncUrlToState,
     onOrientationInputUpdate: updateInputAngles,
-    onZoomPercentChanged: syncZoomResetOverlay,
+    onZoomPercentChanged: (zoomPercent: number) => {
+      state.zoom_pct = zoomPercent;
+      syncZoomResetOverlay(zoomPercent);
+      syncUrlToState();
+    },
   });
   cameraController.lockPositionControls();
   cameraController.installOrientationDrag();
   cameraController.installZoomControls();
   cameraController.applyFixedPose();
-  syncZoomResetOverlay(100);
   if (debugUiEnabled) {
     if (tileDiagnosticsIntervalId === null) {
       tileDiagnosticsIntervalId = window.setInterval(() => {

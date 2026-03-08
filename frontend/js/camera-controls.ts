@@ -8,6 +8,7 @@ type CameraControllerOptions = {
   viewer: Viewer;
   state: ViewState;
   cameraFarMeters: number;
+  initialZoomPercent?: number;
   onPoseChanged?: () => void;
   onOrientationInputUpdate?: () => void;
   onZoomPercentChanged?: (zoomPercent: number) => void;
@@ -23,6 +24,7 @@ export function createCameraController({
   viewer,
   state,
   cameraFarMeters,
+  initialZoomPercent,
   onPoseChanged,
   onOrientationInputUpdate,
   onZoomPercentChanged,
@@ -32,7 +34,11 @@ export function createCameraController({
   let lastX = 0;
   let lastY = 0;
   let dragPoseApplyFrame: number | null = null;
-  let zoomPercent = MIN_ZOOM_PERCENT;
+  let zoomPercent = clamp(
+    initialZoomPercent ?? MIN_ZOOM_PERCENT,
+    MIN_ZOOM_PERCENT,
+    MAX_ZOOM_PERCENT,
+  );
   const activeTouchPointers = new Map<number, { x: number; y: number }>();
   let pinchStartDistance: number | null = null;
   let pinchStartZoomPercent = MIN_ZOOM_PERCENT;
@@ -223,6 +229,7 @@ export function createCameraController({
   function installZoomControls(): void {
     const canvas = viewer.scene.canvas;
     applyZoomFov();
+    notifyZoomPercentChanged();
     canvas.addEventListener(
       "wheel",
       (event: WheelEvent) => {
