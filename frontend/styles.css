@@ -6,6 +6,12 @@
   --muted: #5d6b78;
   --accent: #0b5cab;
   --line: #dce3ea;
+  --z-panel: 1100;
+  --z-panel-inner-control: 2;
+  --z-panel-controls: 1200;
+  --z-hud: 1080;
+  --z-attribution: 1090;
+  --z-mobile-panel-close: 1300;
 }
 
 * {
@@ -34,7 +40,7 @@ body {
   border-right: 1px solid var(--line);
   background: var(--panel);
   overflow-y: auto;
-  z-index: 1100;
+  z-index: var(--z-panel);
   transition:
     transform 0.22s ease,
     opacity 0.22s ease;
@@ -54,7 +60,7 @@ body {
   color: #18324a;
   font-size: 22px;
   line-height: 1;
-  z-index: 2;
+  z-index: var(--z-panel-inner-control);
 }
 
 #panelOpenBtn {
@@ -70,7 +76,7 @@ body {
   color: #18324a;
   font-size: 19px;
   line-height: 1;
-  z-index: 1200;
+  z-index: var(--z-panel-controls);
   box-shadow: 0 4px 14px rgba(20, 32, 43, 0.12);
   display: none;
 }
@@ -82,7 +88,7 @@ body {
   transform: translateX(-50%);
   width: min(560px, calc(100vw - 420px));
   pointer-events: none;
-  z-index: 1080;
+  z-index: var(--z-hud);
 }
 
 .compass-window {
@@ -169,7 +175,7 @@ body {
   position: fixed;
   bottom: 46px;
   left: 12px;
-  z-index: 1080;
+  z-index: var(--z-hud);
   pointer-events: auto;
   border: 1px solid rgba(210, 225, 240, 0.86);
   border-radius: 12px;
@@ -220,7 +226,7 @@ body {
   line-height: 1;
   text-shadow: none;
   box-shadow: none;
-  z-index: 1200;
+  z-index: var(--z-panel-controls);
 }
 
 body.panel-collapsed #panel {
@@ -466,7 +472,7 @@ button#copyBtn {
   position: fixed;
   right: 6px;
   bottom: 2px;
-  z-index: 1090;
+  z-index: var(--z-attribution);
   display: inline;
   padding: 0;
   color: #ffffff;
@@ -483,7 +489,7 @@ button#copyBtn {
 
 .cesium-viewer-bottom,
 .cesium-widget-credits {
-  z-index: 1090 !important;
+  z-index: var(--z-attribution) !important;
 }
 
 @media (max-width: 960px) {
@@ -535,7 +541,7 @@ button#copyBtn {
     right: 10px;
     width: 38px;
     height: 38px;
-    z-index: 1300;
+    z-index: var(--z-mobile-panel-close);
   }
 
   .compass-window {

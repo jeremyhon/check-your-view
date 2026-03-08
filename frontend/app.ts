@@ -2,13 +2,9 @@
 
 import "./config";
 
-import { clamp, normalizeDeg, parseNumber } from "./js/utils";
 import {
   applyQualityPreset,
   applyDebugSettingsLive,
-  applyDebugSettingsToTileset,
-  bindDebugControls,
-  getDebugValueByControlId,
   setDebugPanelVisibility,
   syncDebugInputsFromState,
 } from "./js/debug-controls";
@@ -26,28 +22,19 @@ import {
 import { createLocationController } from "./js/location-controls";
 import { createPanelController, setMiniMapInstructionText } from "./js/panel-controls";
 import { createCompassOverlay } from "./js/compass-overlay";
-import { createAmenityLayer } from "./js/amenity-layer";
 import { syncAmenityToggleLabels } from "./js/amenity-controls";
-import {
-  floorLevelFromHeight,
-  heightFromFloor,
-  isWithinBounds,
-  parseStateFromQuery,
-  sanitizeFloorHeight,
-} from "./js/pose-state";
-import { createCameraController } from "./js/camera-controls";
-import { createSceneDataController } from "./js/scene-data";
+import { isWithinBounds, parseStateFromQuery } from "./js/pose-state";
 import { createTileDiagnosticsController } from "./js/tile-diagnostics";
 import { createUrlSyncController } from "./js/url-sync";
-import { bindDpadControls } from "./js/dpad-controls";
+import { initStateSync, type StateSyncController } from "./js/bootstrap/init-state-sync";
+import { initUiBindings } from "./js/bootstrap/init-ui-bindings";
+import { initViewer } from "./js/bootstrap/init-viewer";
 import type { Cesium3DTileset, Viewer } from "cesium";
 import type {
-  CameraController,
   AmenityLayerController,
+  CameraController,
   CompassOverlayController,
-  DebugControlId,
   DebugState,
-  FloorSyncMode,
   LocationController,
   PanelController,
   QualityPreset,
@@ -84,6 +71,7 @@ let amenityLayerController: AmenityLayerController | null = null;
 let tileDiagnosticsController!: TileDiagnosticsController;
 let urlSyncController!: UrlSyncController;
 let dpadControlsController: DpadControlsController | null = null;
+let stateSync!: StateSyncController;
 
 function requireElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
@@ -139,36 +127,6 @@ const ui: UiElements = {
   status: requireElement("status"),
 };
 
-function syncPositionInputsFromState() {
-  ui.lat.value = state.lat.toFixed(6);
-  ui.lng.value = state.lng.toFixed(6);
-}
-
-function syncInputsFromState() {
-  syncPositionInputsFromState();
-  ui.floorLevel.value = state.floor_level.toFixed(2);
-  ui.floorHeightM.value = state.floor_height_m.toFixed(2);
-  ui.heightM.value = String(state.height_m);
-  ui.fovDeg.value = String(state.fov_deg);
-  ui.headingDeg.value = String(state.heading_deg);
-  ui.pitchDeg.value = String(state.pitch_deg);
-  compassOverlayController.syncHeading(state.heading_deg);
-  syncDebugInputsFromState(ui, debugState, debugUiEnabled);
-}
-
-function readStateFromInputs() {
-  state.lat = parseNumber(ui.lat.value, state.lat);
-  state.lng = parseNumber(ui.lng.value, state.lng);
-  if (!isWithinBounds(state.lat, state.lng, SG_LIMITS)) {
-    state.lat = DEFAULTS.lat;
-    state.lng = DEFAULTS.lng;
-  }
-  syncFloorAndHeightFromInputs("height");
-  state.fov_deg = clamp(parseNumber(ui.fovDeg.value, state.fov_deg), 20, 120);
-  state.heading_deg = normalizeDeg(parseNumber(ui.headingDeg.value, state.heading_deg));
-  state.pitch_deg = clamp(parseNumber(ui.pitchDeg.value, state.pitch_deg), -89, 89);
-}
-
 function parseQualityPreset(value: string): QualityPreset {
   if (value === "ultra" || value === "high" || value === "medium" || value === "low") {
     return value;
@@ -205,37 +163,6 @@ function syncZoomResetOverlay(zoomPercent: number): void {
   ui.zoomResetBtn.setAttribute("aria-label", `Reset zoom from ${roundedZoomPercent}% to 100%`);
 }
 
-function updateInputAngles() {
-  ui.headingDeg.value = state.heading_deg.toFixed(1);
-  ui.pitchDeg.value = state.pitch_deg.toFixed(1);
-  compassOverlayController.syncHeading(state.heading_deg);
-  locationController.syncMiniMapFromState();
-}
-
-function syncFloorAndHeightFromInputs(mode: FloorSyncMode): void {
-  state.floor_height_m = sanitizeFloorHeight(ui.floorHeightM.value, DEFAULTS.floor_height_m);
-  const floorLevelInput = Math.max(parseNumber(ui.floorLevel.value, state.floor_level), 0);
-  const heightInput = clamp(parseNumber(ui.heightM.value, state.height_m), 1, 5000);
-  if (mode === "floor") {
-    state.floor_level = floorLevelInput;
-    state.height_m = clamp(heightFromFloor(state.floor_level, state.floor_height_m), 1, 5000);
-  } else {
-    state.height_m = heightInput;
-    state.floor_level = floorLevelFromHeight(state.height_m, state.floor_height_m);
-  }
-  ui.floorHeightM.value = state.floor_height_m.toFixed(2);
-  ui.floorLevel.value = state.floor_level.toFixed(2);
-  ui.heightM.value = state.height_m.toFixed(1);
-}
-
-function syncHeightFromFloorInputs() {
-  syncFloorAndHeightFromInputs("floor");
-}
-
-function syncFloorFromHeightInput() {
-  syncFloorAndHeightFromInputs("height");
-}
-
 function handleLocationChanged(): void {
   cameraController.applyFixedPose();
   amenityLayerController?.refresh();
@@ -247,129 +174,18 @@ function handleDpadMove(forwardMeters: number, rightMeters: number): void {
     return;
   }
   cameraController.moveRelativeMeters(forwardMeters, rightMeters);
-  syncPositionInputsFromState();
+  stateSync.syncPositionInputsFromState();
   locationController.syncMiniMapFromState();
-}
-
-async function initializeViewer() {
-  Cesium.Ion.defaultAccessToken = "";
-  viewer = new Cesium.Viewer("viewerContainer", {
-    animation: false,
-    timeline: false,
-    fullscreenButton: false,
-    geocoder: false,
-    homeButton: false,
-    sceneModePicker: false,
-    baseLayerPicker: false,
-    navigationHelpButton: false,
-    infoBox: false,
-    selectionIndicator: false,
-    shouldAnimate: false,
-    baseLayer: false,
-  });
-  if (debugUiEnabled) {
-    window.__viewer = viewer;
-  }
-  viewer.scene.camera.constrainedAxis = Cesium.Cartesian3.UNIT_Z;
-  viewer.scene.globe.showGroundAtmosphere = true;
-  if (viewer.scene.skyAtmosphere) {
-    viewer.scene.skyAtmosphere.show = true;
-  }
-  if (viewer.scene.skyBox) {
-    viewer.scene.skyBox.show = true;
-  }
-  viewer.scene.fog.enabled = debugState.fogEnabled;
-  viewer.scene.fog.density = 0.0002;
-  viewer.scene.fog.screenSpaceErrorFactor = 2;
-  viewer.scene.debugShowFramesPerSecond = false;
-  viewer.scene.renderError.addEventListener((scene: unknown, error: unknown) => {
-    setStatus(`Render error: ${errorMessage(error)}`, true);
-  });
-  window.addEventListener("error", (event) => {
-    if (event?.message) {
-      setStatus(`JS error: ${event.message}`, true);
-    }
-  });
-  if (debugUiEnabled) {
-    viewer.camera.changed.addEventListener(() => {
-      tileDiagnosticsController.onCameraChanged();
-    });
-    viewer.camera.moveStart.addEventListener(() => {
-      tileDiagnosticsController.onCameraMoveStart();
-    });
-    viewer.camera.moveEnd.addEventListener(() => {
-      tileDiagnosticsController.onCameraMoveEnd();
-    });
-  }
-
-  cameraController = createCameraController({
-    viewer,
-    state,
-    cameraFarMeters: CAMERA_FAR_METERS,
-    initialZoomPercent: state.zoom_pct,
-    onPoseChanged: () => {
-      urlSyncController.syncDebounced();
-    },
-    onOrientationInputUpdate: updateInputAngles,
-    onZoomPercentChanged: (zoomPercent: number) => {
-      state.zoom_pct = zoomPercent;
-      syncZoomResetOverlay(zoomPercent);
-      amenityLayerController?.refresh();
-      urlSyncController.syncThrottled();
-    },
-  });
-  cameraController.lockPositionControls();
-  cameraController.installOrientationDrag();
-  cameraController.installZoomControls();
-  cameraController.applyFixedPose();
-  tileDiagnosticsController.start();
-
-  sceneDataController = createSceneDataController({
-    viewer,
-    state,
-    singaporeRectangle: SINGAPORE_RECTANGLE,
-    debugState,
-    applyDebugSettingsToTileset: (nextDebugState, targetTileset) => {
-      applyDebugSettingsToTileset(nextDebugState, targetTileset, currentQualityPreset);
-    },
-    onTilesetLoaded: (nextTileset: Cesium3DTileset) => {
-      tileset = nextTileset;
-      if (debugUiEnabled) {
-        window.__tileset = nextTileset;
-      }
-      tileDiagnosticsController.onTilesetLoaded(nextTileset);
-    },
-  });
-  amenityLayerController = createAmenityLayer({
-    viewer,
-    ui,
-    state,
-    setStatus,
-  });
-  amenityLayerController.bindToggleControls();
-  void amenityLayerController.initialize();
-  locationController.initializeMiniMap();
-
-  // Avoid blank startup while heavy 3D tiles are loading.
-  setStatus("Loading OneMap tiles...");
-  void sceneDataController
-    .ensureSceneDataLoaded(true)
-    .then(() => {
-      setStatus("Viewer ready.");
-    })
-    .catch((error: unknown) => {
-      setStatus(`Failed loading OneMap tiles: ${errorMessage(error)}`, true);
-    });
 }
 
 async function applyPoseFromForm() {
   try {
-    readStateFromInputs();
+    stateSync.readStateFromInputs();
     await sceneDataController.ensureSceneDataLoaded();
     locationController.syncMiniMapFromState(true);
     cameraController.applyFixedPose();
     amenityLayerController?.refresh();
-    updateInputAngles();
+    stateSync.updateInputAngles();
     urlSyncController.syncNow();
     setStatus("Pose applied.");
   } catch (error: unknown) {
@@ -385,67 +201,6 @@ async function copyShareLink() {
   } catch {
     setStatus("Copy failed. URL updated in address bar.", true);
   }
-}
-
-function bindUi() {
-  panelController.bindPanelToggleButtons();
-  locationController.bindSearchControls();
-  ui.applyBtn.addEventListener("click", () => {
-    void applyPoseFromForm();
-  });
-  ui.copyBtn.addEventListener("click", () => {
-    void copyShareLink();
-  });
-  ui.zoomResetBtn.addEventListener("click", () => {
-    if (!viewer) {
-      return;
-    }
-    cameraController.resetZoom();
-  });
-  if (dpadControlsController) {
-    dpadControlsController.dispose();
-  }
-  dpadControlsController = bindDpadControls({
-    bindings: [
-      { button: ui.dpadForwardBtn, forwardMeters: D_PAD_STEP_METERS, rightMeters: 0 },
-      { button: ui.dpadBackwardBtn, forwardMeters: -D_PAD_STEP_METERS, rightMeters: 0 },
-      { button: ui.dpadLeftBtn, forwardMeters: 0, rightMeters: -D_PAD_STEP_METERS },
-      { button: ui.dpadRightBtn, forwardMeters: 0, rightMeters: D_PAD_STEP_METERS },
-    ],
-    repeatIntervalMs: D_PAD_HOLD_REPEAT_MS,
-    onMove: handleDpadMove,
-    onStop: () => {
-      urlSyncController.syncNow();
-    },
-  });
-  ui.floorLevel.addEventListener("change", () => {
-    syncHeightFromFloorInputs();
-  });
-  ui.floorHeightM.addEventListener("change", () => {
-    syncHeightFromFloorInputs();
-  });
-  ui.heightM.addEventListener("change", () => {
-    syncFloorFromHeightInput();
-  });
-  ui.qualityPreset.addEventListener("change", () => {
-    applyQualityPresetFromInput();
-  });
-  bindDebugControls({
-    ui,
-    enabled: debugUiEnabled,
-    debugState,
-    onChange: (controlId: DebugControlId) => {
-      applyDebugSettingsLive({
-        viewer,
-        tileset,
-        debugState,
-        qualityPreset: currentQualityPreset,
-      });
-      console.log(`[debug] ${controlId} = ${getDebugValueByControlId(controlId, debugState)}`, {
-        ...debugState,
-      });
-    },
-  });
 }
 
 function initializeStateFromQuery(): void {
@@ -490,6 +245,16 @@ function setupUiControllers(): void {
     track: ui.compassTrack,
     readout: ui.compassReadout,
   });
+  stateSync = initStateSync({
+    ui,
+    state,
+    debugState,
+    defaults: DEFAULTS,
+    boundsLimits: SG_LIMITS,
+    debugUiEnabled,
+    compassOverlayController,
+    locationController,
+  });
 }
 
 function setupInitialUiState(): void {
@@ -498,7 +263,63 @@ function setupInitialUiState(): void {
   applyQualityPresetFromInput();
   panelController.initializePanelCollapsedState();
   setDebugPanelVisibility(ui, debugUiEnabled);
-  syncInputsFromState();
+  stateSync.syncInputsFromState();
+}
+
+function setupUiBindings(): void {
+  dpadControlsController = initUiBindings({
+    ui,
+    panelController,
+    locationController,
+    cameraController,
+    urlSyncController,
+    debugUiEnabled,
+    debugState,
+    getViewer: () => viewer,
+    getTileset: () => tileset,
+    getQualityPreset: () => currentQualityPreset,
+    onApplyPose: applyPoseFromForm,
+    onCopyShareLink: copyShareLink,
+    onDpadMove: handleDpadMove,
+    onSyncHeightFromFloorInputs: stateSync.syncHeightFromFloorInputs,
+    onSyncFloorFromHeightInput: stateSync.syncFloorFromHeightInput,
+    onQualityPresetChange: applyQualityPresetFromInput,
+    dpadStepMeters: D_PAD_STEP_METERS,
+    dpadHoldRepeatMs: D_PAD_HOLD_REPEAT_MS,
+    previousDpadControls: dpadControlsController,
+  });
+}
+
+async function setupViewerRuntime(): Promise<void> {
+  const viewerRuntime = await initViewer({
+    ui,
+    state,
+    debugState,
+    singaporeRectangle: SINGAPORE_RECTANGLE,
+    cameraFarMeters: CAMERA_FAR_METERS,
+    debugUiEnabled,
+    tileDiagnosticsController,
+    urlSyncController,
+    locationController,
+    getQualityPreset: () => currentQualityPreset,
+    setStatus,
+    errorMessage,
+    onOrientationInputUpdate: stateSync.updateInputAngles,
+    onZoomPercentChanged: (zoomPercent: number) => {
+      state.zoom_pct = zoomPercent;
+      syncZoomResetOverlay(zoomPercent);
+      amenityLayerController?.refresh();
+      urlSyncController.syncThrottled();
+    },
+    previousAmenityLayerController: amenityLayerController,
+    onTilesetLoaded: (nextTileset) => {
+      tileset = nextTileset;
+    },
+  });
+  viewer = viewerRuntime.viewer;
+  cameraController = viewerRuntime.cameraController;
+  sceneDataController = viewerRuntime.sceneDataController;
+  amenityLayerController = viewerRuntime.amenityLayerController;
 }
 
 async function bootstrap() {
@@ -506,9 +327,9 @@ async function bootstrap() {
   setupCoreControllers();
   setupUiControllers();
   setupInitialUiState();
-  bindUi();
   try {
-    await initializeViewer();
+    await setupViewerRuntime();
+    setupUiBindings();
     urlSyncController.syncNow();
   } catch (error: unknown) {
     setStatus(`Viewer failed to initialize: ${errorMessage(error)}`, true);
