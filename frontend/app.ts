@@ -24,6 +24,7 @@ import {
 } from "./js/constants";
 import { createLocationController } from "./js/location-controls";
 import { createPanelController, setMiniMapInstructionText } from "./js/panel-controls";
+import { createCompassOverlay } from "./js/compass-overlay";
 import {
   buildShareUrlFromState,
   floorLevelFromHeight,
@@ -37,6 +38,7 @@ import { createSceneDataController } from "./js/scene-data";
 import type { Cesium3DTileset, Viewer } from "cesium";
 import type {
   CameraController,
+  CompassOverlayController,
   DebugControlId,
   DebugState,
   FloorSyncMode,
@@ -62,6 +64,7 @@ let panelController!: PanelController;
 let locationController!: LocationController;
 let cameraController!: CameraController;
 let sceneDataController!: SceneDataController;
+let compassOverlayController!: CompassOverlayController;
 
 function requireElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
@@ -72,6 +75,8 @@ function requireElement<T extends HTMLElement>(id: string): T {
 }
 
 const ui: UiElements = {
+  compassTrack: requireElement("compassTrack"),
+  compassReadout: requireElement("compassReadout"),
   miniMap: requireElement("miniMap"),
   miniMapInstruction: requireElement("miniMapInstruction"),
   lat: requireElement("lat"),
@@ -111,6 +116,7 @@ function syncInputsFromState() {
   ui.headingDeg.value = String(state.heading_deg);
   ui.pitchDeg.value = String(state.pitch_deg);
   ui.baseMap.value = state.base_map;
+  compassOverlayController.syncHeading(state.heading_deg);
   syncDebugInputsFromState(ui, debugState, debugUiEnabled);
 }
 
@@ -144,6 +150,7 @@ function setStatus(message: string, isError = false): void {
 function updateInputAngles() {
   ui.headingDeg.value = state.heading_deg.toFixed(1);
   ui.pitchDeg.value = state.pitch_deg.toFixed(1);
+  compassOverlayController.syncHeading(state.heading_deg);
 }
 
 function syncFloorAndHeightFromInputs(mode: FloorSyncMode): void {
@@ -255,6 +262,7 @@ async function applyPoseFromForm() {
     await sceneDataController.ensureSceneDataLoaded();
     locationController.syncMiniMapFromState(true);
     cameraController.applyFixedPose();
+    updateInputAngles();
     syncUrlToState();
     setStatus("Pose applied.");
   } catch (error: unknown) {
@@ -329,6 +337,10 @@ async function bootstrap() {
   });
   panelController.initializePanelCollapsedState();
   setDebugPanelVisibility(ui, debugUiEnabled);
+  compassOverlayController = createCompassOverlay({
+    track: ui.compassTrack,
+    readout: ui.compassReadout,
+  });
   syncInputsFromState();
   bindUi();
   try {

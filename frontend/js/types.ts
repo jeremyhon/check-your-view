@@ -53,6 +53,8 @@ export interface OneMapSearchPayload {
 }
 
 export interface UiElements {
+  compassTrack: HTMLElement;
+  compassReadout: HTMLElement;
   miniMap: HTMLElement;
   miniMapInstruction: HTMLElement;
   lat: HTMLInputElement;
@@ -80,6 +82,10 @@ export interface UiElements {
   applyBtn: HTMLButtonElement;
   copyBtn: HTMLButtonElement;
   status: HTMLElement;
+}
+
+export interface CompassOverlayController {
+  syncHeading(headingDeg: number): void;
 }
 
 export interface PanelController {

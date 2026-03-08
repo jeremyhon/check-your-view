@@ -18,6 +18,13 @@
   </head>
   <body>
     <button id="panelToggleBtn" type="button" aria-expanded="true">Hide Panel</button>
+    <section id="compassOverlay" class="compass-overlay" aria-live="polite" aria-label="Compass">
+      <div class="compass-window" aria-hidden="true">
+        <div id="compassTrack" class="compass-track"></div>
+        <span class="compass-center-marker"></span>
+      </div>
+      <p id="compassReadout" class="compass-readout">N 0.0°</p>
+    </section>
     <div id="app">
       <aside id="panel">
         <h1>Check Your View</h1>
