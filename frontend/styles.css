@@ -197,7 +197,7 @@ body.panel-collapsed #panelOpenBtn {
 }
 
 body.panel-collapsed .compass-overlay {
-  width: min(620px, calc(100vw - 36px));
+  width: min(620px, calc(100vw - 176px));
 }
 
 h1 {
@@ -402,12 +402,12 @@ button#copyBtn {
 
   .compass-overlay {
     top: 12px;
-    width: min(560px, calc(100vw - 96px));
+    width: min(520px, calc(100vw - 176px));
   }
 
   body.panel-collapsed .compass-overlay {
-    left: calc(50% + 20px);
-    width: min(520px, calc(100vw - 124px));
+    left: 50%;
+    width: min(500px, calc(100vw - 176px));
   }
 
   .compass-window {
