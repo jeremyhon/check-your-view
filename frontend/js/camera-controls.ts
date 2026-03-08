@@ -16,6 +16,8 @@ type CameraControllerOptions = {
 const MIN_ZOOM_PERCENT = 100;
 const MAX_ZOOM_PERCENT = 400;
 const ZOOM_WHEEL_SENSITIVITY = 0.0015;
+const MIN_EFFECTIVE_FOV_DEG = 5;
+const MIN_ZOOM_STEP_PERCENT = 0.5;
 
 export function createCameraController({
   viewer,
@@ -34,11 +36,18 @@ export function createCameraController({
   let pinchStartDistance: number | null = null;
   let pinchStartZoomPercent = MIN_ZOOM_PERCENT;
 
-  function applyVisualZoom(): void {
-    const canvas = viewer.scene.canvas;
-    const scale = zoomPercent / MIN_ZOOM_PERCENT;
-    canvas.style.transformOrigin = "center center";
-    canvas.style.transform = Math.abs(scale - 1) < 0.0001 ? "none" : `scale(${scale.toFixed(4)})`;
+  function applyZoomFov(): void {
+    const frustum = viewer.camera.frustum;
+    if (!("fov" in frustum)) {
+      return;
+    }
+    const effectiveFovDeg = clamp(
+      (state.fov_deg * MIN_ZOOM_PERCENT) / zoomPercent,
+      MIN_EFFECTIVE_FOV_DEG,
+      120,
+    );
+    frustum.fov = Cesium.Math.toRadians(effectiveFovDeg);
+    viewer.scene.requestRender();
   }
 
   function notifyZoomPercentChanged(): void {
@@ -59,11 +68,11 @@ export function createCameraController({
 
   function setZoomPercent(nextZoomPercent: number): void {
     const clampedZoomPercent = clamp(nextZoomPercent, MIN_ZOOM_PERCENT, MAX_ZOOM_PERCENT);
-    if (Math.abs(clampedZoomPercent - zoomPercent) < 0.01) {
+    if (Math.abs(clampedZoomPercent - zoomPercent) < MIN_ZOOM_STEP_PERCENT) {
       return;
     }
     zoomPercent = clampedZoomPercent;
-    applyVisualZoom();
+    applyZoomFov();
     notifyZoomPercentChanged();
   }
 
@@ -81,10 +90,7 @@ export function createCameraController({
         roll: 0,
       },
     });
-    const frustum = viewer.camera.frustum;
-    if ("fov" in frustum) {
-      frustum.fov = Cesium.Math.toRadians(state.fov_deg);
-    }
+    applyZoomFov();
     viewer.camera.frustum.near = 0.2;
     viewer.camera.frustum.far = cameraFarMeters;
   }
@@ -191,7 +197,7 @@ export function createCameraController({
 
   function installZoomControls(): void {
     const canvas = viewer.scene.canvas;
-    applyVisualZoom();
+    applyZoomFov();
     canvas.addEventListener(
       "wheel",
       (event: WheelEvent) => {
