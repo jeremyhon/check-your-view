@@ -20,7 +20,6 @@ type CategoryRenderConfig = {
   color: string;
   radiusM: number;
   baseLimit: number;
-  minZoomPct: number;
 };
 
 const CATEGORY_ORDER: AmenityCategoryId[] = [
@@ -38,42 +37,36 @@ const CATEGORY_RENDER_CONFIG: Record<AmenityCategoryId, CategoryRenderConfig> = 
     color: "#0b5cab",
     radiusM: 6500,
     baseLimit: 28,
-    minZoomPct: 100,
   },
   shopping_malls: {
     label: "Shopping Malls",
     color: "#0a7a52",
     radiusM: 5500,
     baseLimit: 24,
-    minZoomPct: 100,
   },
   primary_schools: {
     label: "Primary Schools",
     color: "#8c2d75",
     radiusM: 4500,
     baseLimit: 30,
-    minZoomPct: 100,
   },
   preschools: {
     label: "Preschools",
     color: "#cf5f16",
     radiusM: 3500,
     baseLimit: 18,
-    minZoomPct: 100,
   },
   supermarkets_wet_markets: {
     label: "Supermarkets / Wet Markets",
     color: "#5e5ce6",
     radiusM: 3200,
     baseLimit: 20,
-    minZoomPct: 150,
   },
   hawker_food_courts: {
     label: "Hawker / Food Courts",
     color: "#aa3a4f",
     radiusM: 3200,
     baseLimit: 20,
-    minZoomPct: 170,
   },
 };
 
@@ -232,9 +225,6 @@ export function createAmenityLayer({
 
   function renderCategoryAmenities(category: AmenityCategoryId): number {
     const config = CATEGORY_RENDER_CONFIG[category];
-    if (state.zoom_pct < config.minZoomPct) {
-      return 0;
-    }
     const points = amenitiesByCategory.get(category) || [];
     if (points.length === 0) {
       return 0;
@@ -302,21 +292,6 @@ export function createAmenityLayer({
     const enabledLabels = enabled
       .map((category) => CATEGORY_RENDER_CONFIG[category].label)
       .join(", ");
-    const zoomBlockedLabels = enabled
-      .filter((category) => state.zoom_pct < CATEGORY_RENDER_CONFIG[category].minZoomPct)
-      .map((category) => CATEGORY_RENDER_CONFIG[category].label);
-    if (zoomBlockedLabels.length > 0) {
-      const minZoomNeeded = Math.min(
-        ...enabled
-          .filter((category) => state.zoom_pct < CATEGORY_RENDER_CONFIG[category].minZoomPct)
-          .map((category) => CATEGORY_RENDER_CONFIG[category].minZoomPct),
-      );
-      setSummary(
-        `${summaryPrefix} (${enabledLabels}). Zoom to ${minZoomNeeded}%+ to show: ${zoomBlockedLabels.join(", ")}.`,
-      );
-      viewer.scene.requestRender();
-      return;
-    }
     setSummary(`${summaryPrefix} (${enabledLabels})`);
     viewer.scene.requestRender();
   }
