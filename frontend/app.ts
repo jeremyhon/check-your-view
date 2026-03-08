@@ -77,6 +77,7 @@ function requireElement<T extends HTMLElement>(id: string): T {
 const ui: UiElements = {
   compassTrack: requireElement("compassTrack"),
   compassReadout: requireElement("compassReadout"),
+  zoomResetBtn: requireElement("zoomResetBtn"),
   miniMap: requireElement("miniMap"),
   miniMapInstruction: requireElement("miniMapInstruction"),
   lat: requireElement("lat"),
@@ -146,6 +147,17 @@ function errorMessage(error: unknown): string {
 function setStatus(message: string, isError = false): void {
   ui.status.textContent = message;
   ui.status.style.color = isError ? "#b42318" : "#1f2937";
+}
+
+function syncZoomResetOverlay(zoomPercent: number): void {
+  if (zoomPercent <= 100.01) {
+    ui.zoomResetBtn.hidden = true;
+    return;
+  }
+  const roundedZoomPercent = Math.round(zoomPercent);
+  ui.zoomResetBtn.hidden = false;
+  ui.zoomResetBtn.textContent = `${roundedZoomPercent}%`;
+  ui.zoomResetBtn.setAttribute("aria-label", `Reset zoom from ${roundedZoomPercent}% to 100%`);
 }
 
 function updateInputAngles() {
@@ -227,10 +239,13 @@ async function initializeViewer() {
     cameraFarMeters: CAMERA_FAR_METERS,
     onPoseChanged: syncUrlToState,
     onOrientationInputUpdate: updateInputAngles,
+    onZoomPercentChanged: syncZoomResetOverlay,
   });
   cameraController.lockPositionControls();
   cameraController.installOrientationDrag();
+  cameraController.installZoomControls();
   cameraController.applyFixedPose();
+  syncZoomResetOverlay(100);
 
   sceneDataController = createSceneDataController({
     viewer,
@@ -289,6 +304,12 @@ function bindUi() {
   });
   ui.copyBtn.addEventListener("click", () => {
     void copyShareLink();
+  });
+  ui.zoomResetBtn.addEventListener("click", () => {
+    if (!viewer) {
+      return;
+    }
+    cameraController.resetZoom();
   });
   ui.floorLevel.addEventListener("change", () => {
     syncHeightFromFloorInputs();

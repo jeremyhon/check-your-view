@@ -55,6 +55,7 @@ export interface OneMapSearchPayload {
 export interface UiElements {
   compassTrack: HTMLElement;
   compassReadout: HTMLElement;
+  zoomResetBtn: HTMLButtonElement;
   miniMap: HTMLElement;
   miniMapInstruction: HTMLElement;
   lat: HTMLInputElement;
@@ -105,6 +106,8 @@ export interface CameraController {
   applyFixedPose(): void;
   installOrientationDrag(): void;
   lockPositionControls(): void;
+  installZoomControls(): void;
+  resetZoom(): void;
 }
 
 export interface SceneDataController {

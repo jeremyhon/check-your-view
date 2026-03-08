@@ -18,7 +18,7 @@
   </head>
   <body>
     <button id="panelOpenBtn" type="button" aria-label="Show controls panel" aria-expanded="true">
-      👁️
+      👀
     </button>
     <section id="compassOverlay" class="compass-overlay" aria-live="polite" aria-label="Compass">
       <div class="compass-window" aria-hidden="true">
@@ -27,6 +27,15 @@
       </div>
       <p id="compassReadout" class="compass-readout">N 0.0°</p>
     </section>
+    <button
+      id="zoomResetBtn"
+      class="zoom-reset-overlay"
+      type="button"
+      aria-label="Reset zoom to 100%"
+      hidden
+    >
+      100%
+    </button>
     <div id="app">
       <aside id="panel">
         <button

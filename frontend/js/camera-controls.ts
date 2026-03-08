@@ -10,7 +10,13 @@ type CameraControllerOptions = {
   cameraFarMeters: number;
   onPoseChanged?: () => void;
   onOrientationInputUpdate?: () => void;
+  onZoomPercentChanged?: (zoomPercent: number) => void;
 };
+
+const MIN_ZOOM_PERCENT = 100;
+const MAX_ZOOM_PERCENT = 400;
+const ZOOM_WHEEL_SENSITIVITY = 0.0015;
+const MIN_EFFECTIVE_FOV_DEG = 5;
 
 export function createCameraController({
   viewer,
@@ -18,11 +24,46 @@ export function createCameraController({
   cameraFarMeters,
   onPoseChanged,
   onOrientationInputUpdate,
+  onZoomPercentChanged,
 }: CameraControllerOptions): CameraController {
   let activePointerId: number | null = null;
   let dragging = false;
   let lastX = 0;
   let lastY = 0;
+  let zoomPercent = MIN_ZOOM_PERCENT;
+  const activeTouchPointers = new Map<number, { x: number; y: number }>();
+  let pinchStartDistance: number | null = null;
+  let pinchStartZoomPercent = MIN_ZOOM_PERCENT;
+
+  function notifyZoomPercentChanged(): void {
+    if (typeof onZoomPercentChanged === "function") {
+      onZoomPercentChanged(zoomPercent);
+    }
+  }
+
+  function getTouchDistance(): number | null {
+    if (activeTouchPointers.size !== 2) {
+      return null;
+    }
+    const [firstPointer, secondPointer] = [...activeTouchPointers.values()];
+    const dx = secondPointer.x - firstPointer.x;
+    const dy = secondPointer.y - firstPointer.y;
+    return Math.hypot(dx, dy);
+  }
+
+  function setZoomPercent(nextZoomPercent: number): void {
+    const clampedZoomPercent = clamp(nextZoomPercent, MIN_ZOOM_PERCENT, MAX_ZOOM_PERCENT);
+    if (Math.abs(clampedZoomPercent - zoomPercent) < 0.01) {
+      return;
+    }
+    zoomPercent = clampedZoomPercent;
+    applyFixedPose();
+    notifyZoomPercentChanged();
+  }
+
+  function resetZoom(): void {
+    setZoomPercent(MIN_ZOOM_PERCENT);
+  }
 
   function applyFixedPose(): void {
     const fixedPosition = Cesium.Cartesian3.fromDegrees(state.lng, state.lat, state.height_m);
@@ -36,7 +77,12 @@ export function createCameraController({
     });
     const frustum = viewer.camera.frustum;
     if ("fov" in frustum) {
-      frustum.fov = Cesium.Math.toRadians(state.fov_deg);
+      const effectiveFov = clamp(
+        (state.fov_deg * MIN_ZOOM_PERCENT) / zoomPercent,
+        MIN_EFFECTIVE_FOV_DEG,
+        120,
+      );
+      frustum.fov = Cesium.Math.toRadians(effectiveFov);
     }
     viewer.camera.frustum.near = 0.2;
     viewer.camera.frustum.far = cameraFarMeters;
@@ -55,11 +101,25 @@ export function createCameraController({
   function installOrientationDrag(): void {
     const canvas = viewer.scene.canvas;
     canvas.style.cursor = "grab";
+    canvas.style.touchAction = "none";
 
     canvas.addEventListener("pointerdown", (event: PointerEvent) => {
       // Primary drag input for mouse/touch/pen.
       if (event.pointerType === "mouse" && event.button > 2) {
         return;
+      }
+      if (event.pointerType === "touch") {
+        activeTouchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        if (activeTouchPointers.size === 2) {
+          const initialDistance = getTouchDistance();
+          pinchStartDistance = initialDistance && initialDistance > 0 ? initialDistance : null;
+          pinchStartZoomPercent = zoomPercent;
+          dragging = false;
+          activePointerId = null;
+          canvas.style.cursor = "grab";
+          event.preventDefault();
+          return;
+        }
       }
       activePointerId = event.pointerId;
       dragging = true;
@@ -75,6 +135,18 @@ export function createCameraController({
     });
 
     canvas.addEventListener("pointermove", (event: PointerEvent) => {
+      if (event.pointerType === "touch" && activeTouchPointers.has(event.pointerId)) {
+        activeTouchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        if (activeTouchPointers.size === 2) {
+          const distance = getTouchDistance();
+          if (distance && pinchStartDistance && pinchStartDistance > 0) {
+            const pinchRatio = distance / pinchStartDistance;
+            setZoomPercent(pinchStartZoomPercent * pinchRatio);
+          }
+          event.preventDefault();
+          return;
+        }
+      }
       if (!dragging || event.pointerId !== activePointerId) {
         return;
       }
@@ -96,6 +168,12 @@ export function createCameraController({
     });
 
     const endDrag = (event: PointerEvent) => {
+      if (event.pointerType === "touch") {
+        activeTouchPointers.delete(event.pointerId);
+        if (activeTouchPointers.size < 2) {
+          pinchStartDistance = null;
+        }
+      }
       if (event.pointerId !== activePointerId) {
         return;
       }
@@ -110,9 +188,24 @@ export function createCameraController({
     canvas.addEventListener("contextmenu", (event: MouseEvent) => event.preventDefault());
   }
 
+  function installZoomControls(): void {
+    const canvas = viewer.scene.canvas;
+    canvas.addEventListener(
+      "wheel",
+      (event: WheelEvent) => {
+        const zoomMultiplier = Math.exp(-event.deltaY * ZOOM_WHEEL_SENSITIVITY);
+        setZoomPercent(zoomPercent * zoomMultiplier);
+        event.preventDefault();
+      },
+      { passive: false },
+    );
+  }
+
   return {
     applyFixedPose,
     installOrientationDrag,
+    installZoomControls,
     lockPositionControls,
+    resetZoom,
   };
 }
