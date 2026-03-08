@@ -43,7 +43,7 @@ body {
 
 #panelToggleBtn {
   position: fixed;
-  top: 12px;
+  top: 80px;
   right: 12px;
   width: auto;
   padding: 7px 10px;
@@ -346,7 +346,7 @@ button#copyBtn {
 @media (max-width: 960px) {
   #panelToggleBtn {
     right: 12px;
-    top: 12px;
+    top: 80px;
   }
 
   #panel {
