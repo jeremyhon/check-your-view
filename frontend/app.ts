@@ -289,13 +289,13 @@ function bindUi() {
   ui.copyBtn.addEventListener("click", () => {
     void copyShareLink();
   });
-  ui.floorLevel.addEventListener("input", () => {
+  ui.floorLevel.addEventListener("change", () => {
     syncHeightFromFloorInputs();
   });
-  ui.floorHeightM.addEventListener("input", () => {
+  ui.floorHeightM.addEventListener("change", () => {
     syncHeightFromFloorInputs();
   });
-  ui.heightM.addEventListener("input", () => {
+  ui.heightM.addEventListener("change", () => {
     syncFloorFromHeightInput();
   });
   bindDebugControls({
