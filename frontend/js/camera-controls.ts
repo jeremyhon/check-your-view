@@ -17,10 +17,7 @@ const MIN_ZOOM_PERCENT = 100;
 const MAX_ZOOM_PERCENT = 400;
 const ZOOM_WHEEL_SENSITIVITY = 0.0015;
 const MIN_EFFECTIVE_FOV_DEG = 5;
-const MIN_ZOOM_STEP_PERCENT = 0.1;
-const FOV_QUANTIZE_DEG = 0.25;
-const ZOOM_APPLY_MIN_INTERVAL_MS = 120;
-const ZOOM_APPLY_TRAILING_DELAY_MS = 140;
+const MIN_ZOOM_STEP_PERCENT = 0.5;
 
 export function createCameraController({
   viewer,
@@ -34,57 +31,24 @@ export function createCameraController({
   let dragging = false;
   let lastX = 0;
   let lastY = 0;
+  let dragPoseApplyFrame: number | null = null;
   let zoomPercent = MIN_ZOOM_PERCENT;
-  let lastAppliedZoomPercent = MIN_ZOOM_PERCENT;
-  let lastAppliedBaseFovDeg = state.fov_deg;
-  let lastZoomAppliedAt = 0;
-  let pendingZoomApplyTimer: number | null = null;
   const activeTouchPointers = new Map<number, { x: number; y: number }>();
   let pinchStartDistance: number | null = null;
   let pinchStartZoomPercent = MIN_ZOOM_PERCENT;
 
-  function clearPendingZoomApplyTimer(): void {
-    if (pendingZoomApplyTimer !== null) {
-      window.clearTimeout(pendingZoomApplyTimer);
-      pendingZoomApplyTimer = null;
-    }
-  }
-
-  function applyZoomFov(zoomPercentValue: number): void {
+  function applyZoomFov(): void {
     const frustum = viewer.camera.frustum;
     if (!("fov" in frustum)) {
       return;
     }
-    const unclampedFovDeg = clamp(
-      (state.fov_deg * MIN_ZOOM_PERCENT) / zoomPercentValue,
+    const effectiveFovDeg = clamp(
+      (state.fov_deg * MIN_ZOOM_PERCENT) / zoomPercent,
       MIN_EFFECTIVE_FOV_DEG,
       120,
     );
-    const quantizedFovDeg = Math.round(unclampedFovDeg / FOV_QUANTIZE_DEG) * FOV_QUANTIZE_DEG;
-    frustum.fov = Cesium.Math.toRadians(quantizedFovDeg);
-    lastAppliedZoomPercent = zoomPercentValue;
-    lastAppliedBaseFovDeg = state.fov_deg;
-    lastZoomAppliedAt = performance.now();
+    frustum.fov = Cesium.Math.toRadians(effectiveFovDeg);
     viewer.scene.requestRender();
-  }
-
-  function applyZoomFovImmediate(): void {
-    clearPendingZoomApplyTimer();
-    applyZoomFov(zoomPercent);
-  }
-
-  function scheduleZoomFovApply(): void {
-    clearPendingZoomApplyTimer();
-    const now = performance.now();
-    const timeSinceLastApply = now - lastZoomAppliedAt;
-    if (timeSinceLastApply >= ZOOM_APPLY_MIN_INTERVAL_MS) {
-      applyZoomFov(zoomPercent);
-      return;
-    }
-    pendingZoomApplyTimer = window.setTimeout(() => {
-      pendingZoomApplyTimer = null;
-      applyZoomFov(zoomPercent);
-    }, ZOOM_APPLY_TRAILING_DELAY_MS);
   }
 
   function notifyZoomPercentChanged(): void {
@@ -109,14 +73,38 @@ export function createCameraController({
       return;
     }
     zoomPercent = clampedZoomPercent;
-    scheduleZoomFovApply();
+    applyZoomFov();
     notifyZoomPercentChanged();
   }
 
   function resetZoom(): void {
-    zoomPercent = MIN_ZOOM_PERCENT;
-    applyZoomFovImmediate();
-    notifyZoomPercentChanged();
+    setZoomPercent(MIN_ZOOM_PERCENT);
+  }
+
+  function updateOrientationInputsOnly(): void {
+    if (typeof onOrientationInputUpdate === "function") {
+      onOrientationInputUpdate();
+    }
+  }
+
+  function flushDragPoseApply(): void {
+    if (dragPoseApplyFrame !== null) {
+      window.cancelAnimationFrame(dragPoseApplyFrame);
+      dragPoseApplyFrame = null;
+    }
+    applyFixedPose();
+    updateOrientationInputsOnly();
+  }
+
+  function scheduleDragPoseApply(): void {
+    if (dragPoseApplyFrame !== null) {
+      return;
+    }
+    dragPoseApplyFrame = window.requestAnimationFrame(() => {
+      dragPoseApplyFrame = null;
+      applyFixedPose();
+      updateOrientationInputsOnly();
+    });
   }
 
   function applyFixedPose(): void {
@@ -129,14 +117,7 @@ export function createCameraController({
         roll: 0,
       },
     });
-    if (
-      Math.abs(lastAppliedZoomPercent - zoomPercent) > MIN_ZOOM_STEP_PERCENT ||
-      Math.abs(lastAppliedBaseFovDeg - state.fov_deg) > 0.0001
-    ) {
-      applyZoomFovImmediate();
-    } else {
-      viewer.scene.requestRender();
-    }
+    applyZoomFov();
     viewer.camera.frustum.near = 0.2;
     viewer.camera.frustum.far = cameraFarMeters;
   }
@@ -210,13 +191,7 @@ export function createCameraController({
 
       state.heading_deg = normalizeDeg(state.heading_deg - dx * 0.2);
       state.pitch_deg = clamp(state.pitch_deg + dy * 0.2, -89, 89);
-      applyFixedPose();
-      if (typeof onOrientationInputUpdate === "function") {
-        onOrientationInputUpdate();
-      }
-      if (typeof onPoseChanged === "function") {
-        onPoseChanged();
-      }
+      scheduleDragPoseApply();
       event.preventDefault();
     });
 
@@ -233,6 +208,10 @@ export function createCameraController({
       dragging = false;
       activePointerId = null;
       canvas.style.cursor = "grab";
+      flushDragPoseApply();
+      if (typeof onPoseChanged === "function") {
+        onPoseChanged();
+      }
       event.preventDefault();
     };
 
@@ -243,7 +222,7 @@ export function createCameraController({
 
   function installZoomControls(): void {
     const canvas = viewer.scene.canvas;
-    applyZoomFovImmediate();
+    applyZoomFov();
     canvas.addEventListener(
       "wheel",
       (event: WheelEvent) => {
