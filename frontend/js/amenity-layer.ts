@@ -330,7 +330,6 @@ export function createAmenityLayer({
     if (points.length === 0) {
       setSummary("Amenity dataset unavailable.");
       setStatus("Amenity labels unavailable: dataset endpoint returned no data.", true);
-      loaded = true;
       return;
     }
     for (const category of CATEGORY_ORDER) {
