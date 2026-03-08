@@ -137,6 +137,11 @@ function zoomLimitMultiplier(zoomPct: number): number {
   return 1;
 }
 
+function formatDistanceKilometers(distanceMeters: number): string {
+  const distanceKm = distanceMeters / 1000;
+  return `${distanceKm.toFixed(1)}km`;
+}
+
 export function createAmenityLayer({
   viewer,
   ui,
@@ -247,7 +252,7 @@ export function createAmenityLayer({
 
     const color = Cesium.Color.fromCssColorString(config.color);
     const background = color.withAlpha(0.78);
-    nearby.forEach(({ point }) => {
+    nearby.forEach(({ point, distanceM }) => {
       dataSource.entities.add({
         id: `amenity:${point.id}`,
         position: Cesium.Cartesian3.fromDegrees(point.lng, point.lat, 1),
@@ -259,7 +264,7 @@ export function createAmenityLayer({
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
         label: {
-          text: point.name,
+          text: `${point.name} (${formatDistanceKilometers(distanceM)})`,
           font: "12px 'Segoe UI', sans-serif",
           style: Cesium.LabelStyle.FILL_AND_OUTLINE,
           fillColor: Cesium.Color.WHITE,
