@@ -44,7 +44,7 @@ body {
 #panelToggleBtn {
   position: fixed;
   top: 12px;
-  left: 352px;
+  right: 12px;
   width: auto;
   padding: 7px 10px;
   border-radius: 999px;
@@ -152,7 +152,7 @@ body.panel-collapsed #panel {
 }
 
 body.panel-collapsed #panelToggleBtn {
-  left: 12px;
+  right: 12px;
 }
 
 body.panel-collapsed .compass-overlay {
@@ -345,7 +345,7 @@ button#copyBtn {
 
 @media (max-width: 960px) {
   #panelToggleBtn {
-    left: 12px;
+    right: 12px;
     top: 12px;
   }
 
