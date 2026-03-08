@@ -59,6 +59,8 @@ const SINGAPORE_RECTANGLE = Cesium.Rectangle.fromDegrees(
 );
 const TILE_DIAGNOSTICS_INTERVAL_MS = 350;
 const TILE_DIAGNOSTICS_LOG_INTERVAL_MS = 3000;
+const INSIDE_BUILDING_HEADROOM_METERS = 2;
+const INDOOR_VISIBILITY_RETRY_DELAY_MS = 900;
 
 type TileDiagnosticsState = {
   startedAtMs: number;
@@ -86,6 +88,7 @@ type TileDiagnosticsState = {
 const state: ViewState = { ...DEFAULTS };
 const debugState: DebugState = { ...DEBUG_DEFAULTS };
 const defaultQualityPreset: QualityPreset = isMobileClient ? "medium" : "high";
+let isInsideBuilding = false;
 let viewer: Viewer | null = null;
 let tileset: Cesium3DTileset | null = null;
 let panelController!: PanelController;
@@ -96,6 +99,7 @@ let compassOverlayController!: CompassOverlayController;
 let tileDiagnosticsIntervalId: number | null = null;
 let tileDiagnosticsWatchedTileset: Cesium3DTileset | null = null;
 let tileDiagnosticsCleanupFns: Array<() => void> = [];
+let indoorVisibilityRetryTimerId: number | null = null;
 
 const tileDiagnosticsState: TileDiagnosticsState = {
   startedAtMs: performance.now(),
@@ -132,6 +136,7 @@ const ui: UiElements = {
   compassTrack: requireElement("compassTrack"),
   compassReadout: requireElement("compassReadout"),
   zoomResetBtn: requireElement("zoomResetBtn"),
+  indoorStatusBadge: requireElement("indoorStatusBadge"),
   tileDiagnostics: requireElement("tileDiagnostics"),
   miniMap: requireElement("miniMap"),
   miniMapInstruction: requireElement("miniMapInstruction"),
@@ -417,6 +422,14 @@ function syncZoomResetOverlay(zoomPercent: number): void {
   ui.zoomResetBtn.setAttribute("aria-label", `Reset zoom from ${roundedZoomPercent}% to 100%`);
 }
 
+function syncIndoorStatusOverlay(insideBuilding: boolean): void {
+  if (insideBuilding === isInsideBuilding) {
+    return;
+  }
+  isInsideBuilding = insideBuilding;
+  ui.indoorStatusBadge.hidden = !insideBuilding;
+}
+
 function updateInputAngles() {
   ui.headingDeg.value = state.heading_deg.toFixed(1);
   ui.pitchDeg.value = state.pitch_deg.toFixed(1);
@@ -448,8 +461,63 @@ function syncFloorFromHeightInput() {
   syncFloorAndHeightFromInputs("height");
 }
 
+function updateIndoorBuildingVisibility(): void {
+  if (!viewer || !tileset) {
+    return;
+  }
+  const activeViewer = viewer;
+  const activeTileset = tileset;
+  const previousShow = activeTileset.show;
+  const scene = activeViewer.scene;
+  if (!scene.sampleHeightSupported) {
+    activeTileset.show = true;
+    syncIndoorStatusOverlay(false);
+    if (activeTileset.show !== previousShow) {
+      scene.requestRender();
+    }
+    return;
+  }
+
+  const cameraPosition = Cesium.Cartographic.fromCartesian(activeViewer.camera.positionWC);
+  if (!cameraPosition) {
+    activeTileset.show = true;
+    syncIndoorStatusOverlay(false);
+    if (activeTileset.show !== previousShow) {
+      scene.requestRender();
+    }
+    return;
+  }
+
+  // Force visible while sampling so we can recover after moving out of a building.
+  activeTileset.show = true;
+  const cameraHeight = cameraPosition.height;
+  const sampledHeight = scene.sampleHeight(cameraPosition);
+  const insideBuildingDetected =
+    typeof sampledHeight === "number" &&
+    Number.isFinite(sampledHeight) &&
+    sampledHeight - cameraHeight >= INSIDE_BUILDING_HEADROOM_METERS;
+
+  activeTileset.show = !insideBuildingDetected;
+  syncIndoorStatusOverlay(insideBuildingDetected);
+  if (activeTileset.show !== previousShow) {
+    scene.requestRender();
+  }
+}
+
+function refreshIndoorBuildingVisibility(): void {
+  updateIndoorBuildingVisibility();
+  if (indoorVisibilityRetryTimerId !== null) {
+    window.clearTimeout(indoorVisibilityRetryTimerId);
+  }
+  indoorVisibilityRetryTimerId = window.setTimeout(() => {
+    indoorVisibilityRetryTimerId = null;
+    updateIndoorBuildingVisibility();
+  }, INDOOR_VISIBILITY_RETRY_DELAY_MS);
+}
+
 function handleLocationChanged(): void {
   cameraController.applyFixedPose();
+  refreshIndoorBuildingVisibility();
   syncUrlToState();
 }
 
@@ -544,6 +612,7 @@ async function initializeViewer() {
         attachTilesetDiagnosticsEvents(nextTileset);
         renderTileDiagnostics();
       }
+      refreshIndoorBuildingVisibility();
     },
   });
   locationController.initializeMiniMap();
@@ -566,6 +635,7 @@ async function applyPoseFromForm() {
     await sceneDataController.ensureSceneDataLoaded();
     locationController.syncMiniMapFromState(true);
     cameraController.applyFixedPose();
+    refreshIndoorBuildingVisibility();
     updateInputAngles();
     syncUrlToState();
     setStatus("Pose applied.");
