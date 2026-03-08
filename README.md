@@ -172,6 +172,7 @@ The script validates:
 - Worker tileset endpoint
 - Worker imagery tile endpoint
 - Worker search endpoint
+- Worker amenities endpoint
 
 Optional overrides:
 

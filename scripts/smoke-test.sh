@@ -6,6 +6,7 @@ PROXY_URL="${PROXY_URL:-https://check-your-view-proxy.jeremy-hon-gy.workers.dev}
 SEARCH_PATH="${SEARCH_PATH:-/api/common/elastic/search?searchVal=Marina%20Bay%20Sands&returnGeom=Y&getAddrDetails=Y&pageNum=1}"
 TILESET_PATH="${TILESET_PATH:-/omapi/tilesets/sg_noterrain_tiles/tileset.json}"
 IMAGERY_PATH="${IMAGERY_PATH:-/maps/tiles/OrthoJPG/17/103350/65068.png}"
+AMENITIES_PATH="${AMENITIES_PATH:-/api/amenities}"
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
@@ -30,10 +31,17 @@ rg -q "A quick way to verify the view from the flat of your dreams" "${tmpdir}/i
 ok "site root is healthy"
 
 asset_path="$(rg -o 'assets/index-[^"]+\.js' -N "${tmpdir}/index.html" | head -n1 || true)"
-[[ -n "${asset_path}" ]] || fail "frontend bundle path not found in index.html"
-asset_status="$(curl -sS -o /dev/null -w "%{http_code}" "${SITE_URL}/${asset_path}")"
-[[ "${asset_status}" == "200" ]] || fail "frontend bundle returned ${asset_status}"
-ok "frontend bundle is reachable (${asset_path})"
+if [[ -n "${asset_path}" ]]; then
+  asset_status="$(curl -sS -o /dev/null -w "%{http_code}" "${SITE_URL}/${asset_path}")"
+  [[ "${asset_status}" == "200" ]] || fail "frontend bundle returned ${asset_status}"
+  ok "frontend bundle is reachable (${asset_path})"
+else
+  dev_module_path="$(rg -o '\./app\.ts' -N "${tmpdir}/index.html" | head -n1 || true)"
+  [[ -n "${dev_module_path}" ]] || fail "frontend bundle path not found in index.html"
+  dev_module_status="$(curl -sS -o /dev/null -w "%{http_code}" "${SITE_URL}/app.ts")"
+  [[ "${dev_module_status}" == "200" ]] || fail "frontend dev module returned ${dev_module_status}"
+  ok "frontend dev module is reachable (/app.ts)"
+fi
 
 tileset_status="$(curl -sS -o "${tmpdir}/tileset.json" -w "%{http_code}" "${PROXY_URL}${TILESET_PATH}")"
 [[ "${tileset_status}" == "200" ]] || fail "tileset endpoint returned ${tileset_status}"
@@ -52,5 +60,11 @@ search_status="$(curl -sS -o "${tmpdir}/search.json" -w "%{http_code}" "${PROXY_
 [[ "${search_status}" == "200" ]] || fail "search endpoint returned ${search_status}"
 rg -q '"results"' "${tmpdir}/search.json" || fail "search payload missing results"
 ok "search endpoint is healthy"
+
+amenities_status="$(curl -sS -o "${tmpdir}/amenities.json" -w "%{http_code}" "${PROXY_URL}${AMENITIES_PATH}")"
+[[ "${amenities_status}" == "200" ]] || fail "amenities endpoint returned ${amenities_status}"
+rg -q '"amenities"' "${tmpdir}/amenities.json" || fail "amenities payload missing amenities array"
+rg -q '"counts"' "${tmpdir}/amenities.json" || fail "amenities payload missing counts"
+ok "amenities endpoint is healthy"
 
 echo "Smoke test succeeded."
