@@ -9,8 +9,8 @@ export const isMobileClient =
     window.matchMedia("(max-width: 960px), (pointer: coarse)").matches) ||
   /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
 export const debugUiEnabled = new URLSearchParams(window.location.search).get("debug") === "1";
-export const DISABLE_3D_OPTIMIZATIONS = true;
-export const defaultMaxSse = DISABLE_3D_OPTIMIZATIONS ? 8 : isMobileClient ? 64 : 4;
+export const DISABLE_3D_OPTIMIZATIONS = false;
+export const defaultMaxSse = DISABLE_3D_OPTIMIZATIONS ? 8 : isMobileClient ? 24 : 8;
 export const CAMERA_FAR_METERS = 2_000_000;
 export const PANEL_COLLAPSE_STORAGE_KEY = "check-your-view:panel-collapsed";
 
@@ -61,13 +61,13 @@ export const DEBUG_DEFAULTS: DebugState = DISABLE_3D_OPTIMIZATIONS
   : isLocalHost
     ? {
         fogEnabled: false,
-        dynamicScreenSpaceError: false,
+        dynamicScreenSpaceError: true,
         maximumScreenSpaceError: defaultMaxSse,
         skipLevelOfDetail: true,
         cullWithChildrenBounds: true,
-        cullRequestsWhileMoving: false,
-        cullRequestsWhileMovingMultiplier: 12,
-        loadSiblings: true,
+        cullRequestsWhileMoving: true,
+        cullRequestsWhileMovingMultiplier: 8,
+        loadSiblings: false,
         foveatedScreenSpaceError: true,
       }
     : {
