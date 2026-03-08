@@ -56,6 +56,7 @@ export interface UiElements {
   compassTrack: HTMLElement;
   compassReadout: HTMLElement;
   zoomResetBtn: HTMLButtonElement;
+  tileDiagnostics: HTMLElement;
   miniMap: HTMLElement;
   miniMapInstruction: HTMLElement;
   lat: HTMLInputElement;

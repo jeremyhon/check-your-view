@@ -55,6 +55,31 @@ const SINGAPORE_RECTANGLE = Cesium.Rectangle.fromDegrees(
   SINGAPORE_RECTANGLE_DEGREES.east,
   SINGAPORE_RECTANGLE_DEGREES.north,
 );
+const TILE_DIAGNOSTICS_INTERVAL_MS = 350;
+const TILE_DIAGNOSTICS_LOG_INTERVAL_MS = 3000;
+
+type TileDiagnosticsState = {
+  startedAtMs: number;
+  pendingRequests: number;
+  tilesProcessing: number;
+  maxPendingRequests: number;
+  maxTilesProcessing: number;
+  loadProgressEvents: number;
+  tileLoadEvents: number;
+  tileUnloadEvents: number;
+  tileFailedEvents: number;
+  allTilesLoadedEvents: number;
+  initialTilesLoadedEvents: number;
+  cameraChangedEvents: number;
+  cameraMoveStartEvents: number;
+  cameraMoveEndEvents: number;
+  lastProgressAtMs: number;
+  lastCameraChangeAtMs: number;
+  lastTileLoadAtMs: number;
+  lastTileFailedUrl: string;
+  lastTileFailedMessage: string;
+  lastLogAtMs: number;
+};
 
 const state: ViewState = { ...DEFAULTS };
 const debugState: DebugState = { ...DEBUG_DEFAULTS };
@@ -65,6 +90,32 @@ let locationController!: LocationController;
 let cameraController!: CameraController;
 let sceneDataController!: SceneDataController;
 let compassOverlayController!: CompassOverlayController;
+let tileDiagnosticsIntervalId: number | null = null;
+let tileDiagnosticsWatchedTileset: Cesium3DTileset | null = null;
+let tileDiagnosticsCleanupFns: Array<() => void> = [];
+
+const tileDiagnosticsState: TileDiagnosticsState = {
+  startedAtMs: performance.now(),
+  pendingRequests: 0,
+  tilesProcessing: 0,
+  maxPendingRequests: 0,
+  maxTilesProcessing: 0,
+  loadProgressEvents: 0,
+  tileLoadEvents: 0,
+  tileUnloadEvents: 0,
+  tileFailedEvents: 0,
+  allTilesLoadedEvents: 0,
+  initialTilesLoadedEvents: 0,
+  cameraChangedEvents: 0,
+  cameraMoveStartEvents: 0,
+  cameraMoveEndEvents: 0,
+  lastProgressAtMs: 0,
+  lastCameraChangeAtMs: 0,
+  lastTileLoadAtMs: 0,
+  lastTileFailedUrl: "",
+  lastTileFailedMessage: "",
+  lastLogAtMs: 0,
+};
 
 function requireElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
@@ -78,6 +129,7 @@ const ui: UiElements = {
   compassTrack: requireElement("compassTrack"),
   compassReadout: requireElement("compassReadout"),
   zoomResetBtn: requireElement("zoomResetBtn"),
+  tileDiagnostics: requireElement("tileDiagnostics"),
   miniMap: requireElement("miniMap"),
   miniMapInstruction: requireElement("miniMapInstruction"),
   lat: requireElement("lat"),
@@ -147,6 +199,177 @@ function errorMessage(error: unknown): string {
 function setStatus(message: string, isError = false): void {
   ui.status.textContent = message;
   ui.status.style.color = isError ? "#b42318" : "#1f2937";
+}
+
+function secondsAgo(timestampMs: number, nowMs: number): string {
+  if (!timestampMs) {
+    return "-";
+  }
+  return `${((nowMs - timestampMs) / 1000).toFixed(1)}s`;
+}
+
+function toMegabytes(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+function resetTileDiagnosticsState(): void {
+  const now = performance.now();
+  tileDiagnosticsState.startedAtMs = now;
+  tileDiagnosticsState.pendingRequests = 0;
+  tileDiagnosticsState.tilesProcessing = 0;
+  tileDiagnosticsState.maxPendingRequests = 0;
+  tileDiagnosticsState.maxTilesProcessing = 0;
+  tileDiagnosticsState.loadProgressEvents = 0;
+  tileDiagnosticsState.tileLoadEvents = 0;
+  tileDiagnosticsState.tileUnloadEvents = 0;
+  tileDiagnosticsState.tileFailedEvents = 0;
+  tileDiagnosticsState.allTilesLoadedEvents = 0;
+  tileDiagnosticsState.initialTilesLoadedEvents = 0;
+  tileDiagnosticsState.lastProgressAtMs = 0;
+  tileDiagnosticsState.lastTileLoadAtMs = 0;
+  tileDiagnosticsState.lastTileFailedUrl = "";
+  tileDiagnosticsState.lastTileFailedMessage = "";
+  tileDiagnosticsState.lastLogAtMs = 0;
+}
+
+function detachTilesetDiagnosticsEvents(): void {
+  tileDiagnosticsCleanupFns.forEach((cleanupFn) => {
+    try {
+      cleanupFn();
+    } catch {
+      // Ignore listener cleanup failures.
+    }
+  });
+  tileDiagnosticsCleanupFns = [];
+  tileDiagnosticsWatchedTileset = null;
+}
+
+function maybeLogTileDiagnostics(targetTileset: Cesium3DTileset, nowMs: number): void {
+  if (nowMs - tileDiagnosticsState.lastLogAtMs < TILE_DIAGNOSTICS_LOG_INTERVAL_MS) {
+    return;
+  }
+  tileDiagnosticsState.lastLogAtMs = nowMs;
+  if (
+    tileDiagnosticsState.pendingRequests === 0 &&
+    tileDiagnosticsState.tilesProcessing === 0 &&
+    tileDiagnosticsState.tileFailedEvents === 0
+  ) {
+    return;
+  }
+  console.log("[diag] tiles", {
+    pendingRequests: tileDiagnosticsState.pendingRequests,
+    tilesProcessing: tileDiagnosticsState.tilesProcessing,
+    maxPendingRequests: tileDiagnosticsState.maxPendingRequests,
+    maxTilesProcessing: tileDiagnosticsState.maxTilesProcessing,
+    loadProgressEvents: tileDiagnosticsState.loadProgressEvents,
+    tileLoadEvents: tileDiagnosticsState.tileLoadEvents,
+    tileUnloadEvents: tileDiagnosticsState.tileUnloadEvents,
+    tileFailedEvents: tileDiagnosticsState.tileFailedEvents,
+    allTilesLoadedEvents: tileDiagnosticsState.allTilesLoadedEvents,
+    initialTilesLoadedEvents: tileDiagnosticsState.initialTilesLoadedEvents,
+    tilesLoaded: targetTileset.tilesLoaded,
+    totalMemoryUsageInBytes: targetTileset.totalMemoryUsageInBytes,
+    cacheBytes: targetTileset.cacheBytes,
+    maximumCacheOverflowBytes: targetTileset.maximumCacheOverflowBytes,
+    maximumScreenSpaceError: targetTileset.maximumScreenSpaceError,
+    dynamicScreenSpaceError: targetTileset.dynamicScreenSpaceError,
+    skipLevelOfDetail: targetTileset.skipLevelOfDetail,
+    cullRequestsWhileMoving: targetTileset.cullRequestsWhileMoving,
+    foveatedScreenSpaceError: targetTileset.foveatedScreenSpaceError,
+    loadSiblings: targetTileset.loadSiblings,
+    lastTileFailedUrl: tileDiagnosticsState.lastTileFailedUrl,
+    lastTileFailedMessage: tileDiagnosticsState.lastTileFailedMessage,
+  });
+}
+
+function renderTileDiagnostics(): void {
+  const now = performance.now();
+  const activeTileset = tileset;
+  if (!activeTileset) {
+    ui.tileDiagnostics.textContent = "Waiting for tileset...";
+    return;
+  }
+  const lines = [
+    `uptime=${secondsAgo(tileDiagnosticsState.startedAtMs, now)}`,
+    `cameraChanged=${tileDiagnosticsState.cameraChangedEvents} moveStart=${tileDiagnosticsState.cameraMoveStartEvents} moveEnd=${tileDiagnosticsState.cameraMoveEndEvents}`,
+    `lastCameraChange=${secondsAgo(tileDiagnosticsState.lastCameraChangeAtMs, now)}`,
+    `pending=${tileDiagnosticsState.pendingRequests} processing=${tileDiagnosticsState.tilesProcessing} (max ${tileDiagnosticsState.maxPendingRequests}/${tileDiagnosticsState.maxTilesProcessing})`,
+    `loadProgressEvents=${tileDiagnosticsState.loadProgressEvents} lastProgress=${secondsAgo(tileDiagnosticsState.lastProgressAtMs, now)}`,
+    `tileLoad=${tileDiagnosticsState.tileLoadEvents} tileUnload=${tileDiagnosticsState.tileUnloadEvents} tileFailed=${tileDiagnosticsState.tileFailedEvents} allLoaded=${tileDiagnosticsState.allTilesLoadedEvents} initialLoaded=${tileDiagnosticsState.initialTilesLoadedEvents}`,
+    `lastTileLoad=${secondsAgo(tileDiagnosticsState.lastTileLoadAtMs, now)}`,
+    `tilesLoadedFlag=${activeTileset.tilesLoaded}`,
+    `memory=${toMegabytes(activeTileset.totalMemoryUsageInBytes)} cache=${toMegabytes(activeTileset.cacheBytes)} + overflow=${toMegabytes(activeTileset.maximumCacheOverflowBytes)}`,
+    `sse(max=${activeTileset.maximumScreenSpaceError}, dynamic=${String(activeTileset.dynamicScreenSpaceError)})`,
+    `lod(skip=${String(activeTileset.skipLevelOfDetail)}, cullMoving=${String(activeTileset.cullRequestsWhileMoving)}, foveated=${String(activeTileset.foveatedScreenSpaceError)}, siblings=${String(activeTileset.loadSiblings)})`,
+  ];
+  if (tileDiagnosticsState.lastTileFailedUrl) {
+    lines.push(`lastFailUrl=${tileDiagnosticsState.lastTileFailedUrl}`);
+  }
+  if (tileDiagnosticsState.lastTileFailedMessage) {
+    lines.push(`lastFailMessage=${tileDiagnosticsState.lastTileFailedMessage}`);
+  }
+  ui.tileDiagnostics.textContent = lines.join("\n");
+  maybeLogTileDiagnostics(activeTileset, now);
+}
+
+function attachTilesetDiagnosticsEvents(targetTileset: Cesium3DTileset): void {
+  if (tileDiagnosticsWatchedTileset === targetTileset) {
+    return;
+  }
+  detachTilesetDiagnosticsEvents();
+  tileDiagnosticsWatchedTileset = targetTileset;
+  resetTileDiagnosticsState();
+
+  const removeLoadProgress = targetTileset.loadProgress.addEventListener(
+    (numberOfPendingRequests: number, numberOfTilesProcessing: number) => {
+      tileDiagnosticsState.loadProgressEvents += 1;
+      tileDiagnosticsState.pendingRequests = numberOfPendingRequests;
+      tileDiagnosticsState.tilesProcessing = numberOfTilesProcessing;
+      tileDiagnosticsState.maxPendingRequests = Math.max(
+        tileDiagnosticsState.maxPendingRequests,
+        numberOfPendingRequests,
+      );
+      tileDiagnosticsState.maxTilesProcessing = Math.max(
+        tileDiagnosticsState.maxTilesProcessing,
+        numberOfTilesProcessing,
+      );
+      tileDiagnosticsState.lastProgressAtMs = performance.now();
+    },
+  ) as unknown as () => void;
+  const removeTileLoad = targetTileset.tileLoad.addEventListener(() => {
+    tileDiagnosticsState.tileLoadEvents += 1;
+    tileDiagnosticsState.lastTileLoadAtMs = performance.now();
+  }) as unknown as () => void;
+  const removeTileUnload = targetTileset.tileUnload.addEventListener(() => {
+    tileDiagnosticsState.tileUnloadEvents += 1;
+  }) as unknown as () => void;
+  const removeTileFailed = targetTileset.tileFailed.addEventListener((error: unknown) => {
+    tileDiagnosticsState.tileFailedEvents += 1;
+    if (typeof error === "object" && error !== null) {
+      const details = error as { url?: unknown; message?: unknown };
+      if (typeof details.url === "string") {
+        tileDiagnosticsState.lastTileFailedUrl = details.url;
+      }
+      if (typeof details.message === "string") {
+        tileDiagnosticsState.lastTileFailedMessage = details.message;
+      }
+    }
+  }) as unknown as () => void;
+  const removeAllTilesLoaded = targetTileset.allTilesLoaded.addEventListener(() => {
+    tileDiagnosticsState.allTilesLoadedEvents += 1;
+  }) as unknown as () => void;
+  const removeInitialTilesLoaded = targetTileset.initialTilesLoaded.addEventListener(() => {
+    tileDiagnosticsState.initialTilesLoadedEvents += 1;
+  }) as unknown as () => void;
+
+  tileDiagnosticsCleanupFns = [
+    removeLoadProgress,
+    removeTileLoad,
+    removeTileUnload,
+    removeTileFailed,
+    removeAllTilesLoaded,
+    removeInitialTilesLoaded,
+  ];
 }
 
 function syncZoomResetOverlay(zoomPercent: number): void {
@@ -232,6 +455,18 @@ async function initializeViewer() {
       setStatus(`JS error: ${event.message}`, true);
     }
   });
+  viewer.camera.changed.addEventListener(() => {
+    tileDiagnosticsState.cameraChangedEvents += 1;
+    tileDiagnosticsState.lastCameraChangeAtMs = performance.now();
+  });
+  viewer.camera.moveStart.addEventListener(() => {
+    tileDiagnosticsState.cameraMoveStartEvents += 1;
+    tileDiagnosticsState.lastCameraChangeAtMs = performance.now();
+  });
+  viewer.camera.moveEnd.addEventListener(() => {
+    tileDiagnosticsState.cameraMoveEndEvents += 1;
+    tileDiagnosticsState.lastCameraChangeAtMs = performance.now();
+  });
 
   cameraController = createCameraController({
     viewer,
@@ -246,6 +481,12 @@ async function initializeViewer() {
   cameraController.installZoomControls();
   cameraController.applyFixedPose();
   syncZoomResetOverlay(100);
+  if (tileDiagnosticsIntervalId === null) {
+    tileDiagnosticsIntervalId = window.setInterval(() => {
+      renderTileDiagnostics();
+    }, TILE_DIAGNOSTICS_INTERVAL_MS);
+  }
+  renderTileDiagnostics();
 
   sceneDataController = createSceneDataController({
     viewer,
@@ -256,6 +497,8 @@ async function initializeViewer() {
     onTilesetLoaded: (nextTileset: Cesium3DTileset) => {
       tileset = nextTileset;
       window.__tileset = nextTileset;
+      attachTilesetDiagnosticsEvents(nextTileset);
+      renderTileDiagnostics();
     },
   });
   locationController.initializeMiniMap();
