@@ -236,10 +236,11 @@ Apply formatting:
 pnpm run format:fix
 ```
 
-## Planned View URL Schema (Frontend)
+## Current View URL Schema (Frontend)
 
 - `lat`
 - `lng`
+- `zoom_pct` (`100` to `400`)
 - `floor_level`
 - `floor_height_m`
 - `height_m`
@@ -247,7 +248,25 @@ pnpm run format:fix
 - `pitch_deg`
 - `fov_deg`
 
-This schema represents exact camera position and orientation with height in meters.
+This schema represents exact camera pose + zoom. `fov_deg` is the base lens value and `zoom_pct`
+is an additional runtime zoom multiplier used by wheel/pinch.
+
+## Frontend State Contract
+
+Use these buckets as the source of truth when adding features:
+
+- `ShareState` (URL): stable, linkable view state (`lat`, `lng`, `zoom_pct`, `height_m`, floor
+  fields, `heading_deg`, `pitch_deg`, `fov_deg`).
+- `SessionState` (browser/session): UI convenience state that should not affect shared view
+  semantics (for example panel collapsed/open, debug mode, quality preset).
+- `RuntimeState` (memory-only): ephemeral rendering and interaction state (Cesium handles,
+  diagnostics counters, in-flight requests, pointer gesture internals).
+
+Rules:
+
+- Only put reproducible viewpoint data in URL.
+- Keep `proxy_base` runtime-config only (not URL share state).
+- Preserve `debug=1` when URL is rewritten so debugging survives state edits.
 
 ## Frontend Behavior
 
@@ -257,6 +276,7 @@ This schema represents exact camera position and orientation with height in mete
 - Search box above mini map (OneMap search endpoint) for quick location jumps.
 - Mini map above coordinate fields for click/drag location selection.
 - Mouse drag changes orientation (`heading_deg`, `pitch_deg`) only.
-- Share link encodes exact camera pose values.
+- Share link encodes exact camera pose + zoom values.
+- Debug globals `window.__viewer` and `window.__tileset` are exposed only with `?debug=1`.
 - Debug rendering controls are hidden by default and shown with `?debug=1`.
 - 3D tiles use aggressive LOD skipping/culling to avoid loading far-distance content unnecessarily.
