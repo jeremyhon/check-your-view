@@ -28,16 +28,17 @@ const CATEGORY_CONFIGS = [
       if (!name) {
         return false;
       }
-      if (/\bMRT\b|\bLRT\b/i.test(name)) {
-        return true;
-      }
       const stationType = normalizeTag(tags.station).toLowerCase();
       if (stationType === "subway" || stationType === "light_rail") {
         return true;
       }
-      const railway = normalizeTag(tags.railway).toLowerCase();
-      return railway === "station" && /\bSTATION\b/i.test(name);
+      const network = normalizeTag(tags.network);
+      if (/\bMRT\b|\bLRT\b/i.test(`${name} ${network}`)) {
+        return true;
+      }
+      return false;
     },
+    nearDuplicateMeters: 180,
   },
   {
     id: "primary_schools",
@@ -56,6 +57,7 @@ const CATEGORY_CONFIGS = [
       const isced = normalizeTag(tags["isced:level"]);
       return /\bPRIMARY SCHOOL\b/i.test(name) || /(^|[;,])\s*1(\s*[;,]|$)/.test(isced);
     },
+    nearDuplicateMeters: 120,
   },
   {
     id: "preschools",
@@ -67,6 +69,7 @@ const CATEGORY_CONFIGS = [
       'relation["amenity"="kindergarten"](area.sg);',
     ],
     include: (tags) => Boolean(normalizeTag(tags.name)),
+    nearDuplicateMeters: 80,
   },
   {
     id: "shopping_malls",
@@ -78,6 +81,7 @@ const CATEGORY_CONFIGS = [
       'relation["shop"="mall"](area.sg);',
     ],
     include: (tags) => Boolean(normalizeTag(tags.name)),
+    nearDuplicateMeters: 120,
   },
   {
     id: "supermarkets_wet_markets",
@@ -94,6 +98,7 @@ const CATEGORY_CONFIGS = [
     include: (tags) => Boolean(normalizeTag(tags.name)),
     subcategory: (tags) =>
       normalizeTag(tags.shop).toLowerCase() === "supermarket" ? "supermarket" : "marketplace",
+    nearDuplicateMeters: 60,
   },
   {
     id: "hawker_food_courts",
@@ -105,6 +110,7 @@ const CATEGORY_CONFIGS = [
       'relation["amenity"="food_court"](area.sg);',
     ],
     include: (tags) => Boolean(normalizeTag(tags.name)),
+    nearDuplicateMeters: 60,
   },
 ];
 
@@ -220,6 +226,101 @@ function pickTags(tags) {
   return out;
 }
 
+function isConstructionOrProposed(tags) {
+  const railway = normalizeTag(tags.railway).toLowerCase();
+  const publicTransport = normalizeTag(tags.public_transport).toLowerCase();
+  const construction = normalizeTag(tags.construction);
+  const proposed = normalizeTag(tags.proposed);
+  if (construction || proposed) {
+    return true;
+  }
+  return railway === "construction" || railway === "proposed" || publicTransport === "construction";
+}
+
+function isLowSignalName(name, categoryId) {
+  const trimmed = normalizeTag(name);
+  if (!trimmed) {
+    return true;
+  }
+  if (/^\(.*\)$/.test(trimmed)) {
+    return true;
+  }
+  const alnumLength = trimmed.replace(/[^\p{L}\p{N}]+/gu, "").length;
+  if (alnumLength < 2) {
+    return true;
+  }
+  if (categoryId === "hawker_food_courts" && /^[A-Za-z0-9-]{1,4}$/.test(trimmed)) {
+    return true;
+  }
+  return false;
+}
+
+function normalizeNameForDedupe(name) {
+  return normalizeTag(name).toLocaleLowerCase("en").replace(/\s+/g, " ");
+}
+
+function sourceTypeRank(osmType) {
+  if (osmType === "relation") {
+    return 0;
+  }
+  if (osmType === "way") {
+    return 1;
+  }
+  if (osmType === "node") {
+    return 2;
+  }
+  return 3;
+}
+
+function haversineMeters(aLat, aLng, bLat, bLng) {
+  const toRadians = Math.PI / 180;
+  const dLat = (bLat - aLat) * toRadians;
+  const dLng = (bLng - aLng) * toRadians;
+  const lat1 = aLat * toRadians;
+  const lat2 = bLat * toRadians;
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+  const h = sinLat * sinLat + Math.cos(lat1) * Math.cos(lat2) * sinLng * sinLng;
+  return 2 * 6_371_000 * Math.asin(Math.sqrt(h));
+}
+
+function createCategoryQa(rawCount) {
+  return {
+    raw_elements: rawCount,
+    kept_after_source_dedupe: 0,
+    kept_final: 0,
+    dropped: {
+      construction_or_proposed: 0,
+      category_filter: 0,
+      missing_name: 0,
+      low_signal_name: 0,
+      missing_coordinate: 0,
+      invalid_source: 0,
+      duplicate_source_id: 0,
+      duplicate_name_distance: 0,
+    },
+    sample_drops: {
+      construction_or_proposed: [],
+      low_signal_name: [],
+      duplicate_name_distance: [],
+    },
+  };
+}
+
+function pushSampleDrop(samples, reason, value) {
+  const list = samples[reason];
+  if (!Array.isArray(list)) {
+    return;
+  }
+  if (list.length >= 8) {
+    return;
+  }
+  if (!value) {
+    return;
+  }
+  list.push(value);
+}
+
 async function fetchOverpassJson(overpassUrl, query) {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
     const controller = new AbortController();
@@ -272,29 +373,46 @@ async function fetchOverpassJson(overpassUrl, query) {
 }
 
 function normalizeCategoryElements(categoryConfig, elements) {
-  const deduped = new Map();
+  const qa = createCategoryQa(elements.length);
+  const dedupedBySource = new Map();
   for (const element of elements) {
     if (!element || typeof element !== "object") {
+      qa.dropped.invalid_source += 1;
       continue;
     }
     const tags = typeof element.tags === "object" && element.tags ? element.tags : {};
-    if (!categoryConfig.include(tags)) {
+    const name = normalizeTag(tags.name);
+    if (isConstructionOrProposed(tags)) {
+      qa.dropped.construction_or_proposed += 1;
+      pushSampleDrop(qa.sample_drops, "construction_or_proposed", name);
       continue;
     }
-    const name = normalizeTag(tags.name);
+    if (!categoryConfig.include(tags)) {
+      qa.dropped.category_filter += 1;
+      continue;
+    }
     if (!name) {
+      qa.dropped.missing_name += 1;
+      continue;
+    }
+    if (isLowSignalName(name, categoryConfig.id)) {
+      qa.dropped.low_signal_name += 1;
+      pushSampleDrop(qa.sample_drops, "low_signal_name", name);
       continue;
     }
     const coord = getCoordinate(element);
     if (!coord) {
+      qa.dropped.missing_coordinate += 1;
       continue;
     }
     const osmType = normalizeTag(element.type);
     if (!osmType || typeof element.id !== "number") {
+      qa.dropped.invalid_source += 1;
       continue;
     }
     const sourceId = `${osmType}/${element.id}`;
-    if (deduped.has(sourceId)) {
+    if (dedupedBySource.has(sourceId)) {
+      qa.dropped.duplicate_source_id += 1;
       continue;
     }
     const normalized = {
@@ -307,6 +425,7 @@ function normalizeCategoryElements(categoryConfig, elements) {
       osm_id: element.id,
       osm_url: `https://www.openstreetmap.org/${sourceId}`,
       tags: pickTags(tags),
+      _name_key: normalizeNameForDedupe(name),
     };
     if (typeof categoryConfig.subcategory === "function") {
       const subcategory = normalizeTag(categoryConfig.subcategory(tags));
@@ -314,9 +433,56 @@ function normalizeCategoryElements(categoryConfig, elements) {
         normalized.subcategory = subcategory;
       }
     }
-    deduped.set(sourceId, normalized);
+    dedupedBySource.set(sourceId, normalized);
   }
-  return [...deduped.values()];
+
+  qa.kept_after_source_dedupe = dedupedBySource.size;
+  const candidates = [...dedupedBySource.values()].sort((a, b) => {
+    if (a._name_key !== b._name_key) {
+      return a._name_key.localeCompare(b._name_key);
+    }
+    const rankDiff = sourceTypeRank(a.osm_type) - sourceTypeRank(b.osm_type);
+    if (rankDiff !== 0) {
+      return rankDiff;
+    }
+    return a.id.localeCompare(b.id);
+  });
+
+  const accepted = [];
+  const byName = new Map();
+  const nearDuplicateMeters = Number(categoryConfig.nearDuplicateMeters || 80);
+
+  for (const candidate of candidates) {
+    const sameNameIndices = byName.get(candidate._name_key) || [];
+    let duplicate = false;
+    for (const idx of sameNameIndices) {
+      const existing = accepted[idx];
+      const distance = haversineMeters(candidate.lat, candidate.lng, existing.lat, existing.lng);
+      if (distance <= nearDuplicateMeters) {
+        duplicate = true;
+        break;
+      }
+    }
+    if (duplicate) {
+      qa.dropped.duplicate_name_distance += 1;
+      pushSampleDrop(
+        qa.sample_drops,
+        "duplicate_name_distance",
+        `${candidate.name} (${candidate.lat}, ${candidate.lng})`,
+      );
+      continue;
+    }
+    const nextIndex = accepted.length;
+    accepted.push(candidate);
+    byName.set(candidate._name_key, [...sameNameIndices, nextIndex]);
+  }
+
+  qa.kept_final = accepted.length;
+  const finalized = accepted.map((item) => {
+    const { _name_key: _nameKey, ...rest } = item;
+    return rest;
+  });
+  return { amenities: finalized, qa };
 }
 
 function sortAmenities(amenities) {
@@ -348,6 +514,8 @@ async function main() {
   }));
   const amenities = [];
   const counts = {};
+  const qaByCategory = {};
+  const rawCounts = {};
 
   console.log(`[info] Using Overpass endpoint: ${options.overpassUrl}`);
   for (const category of CATEGORY_CONFIGS) {
@@ -355,22 +523,49 @@ async function main() {
     console.log(`[info] Querying category: ${category.id}`);
     const payload = await fetchOverpassJson(options.overpassUrl, query);
     const elements = Array.isArray(payload.elements) ? payload.elements : [];
-    const normalized = normalizeCategoryElements(category, elements);
+    rawCounts[category.id] = elements.length;
+    const { amenities: normalized, qa } = normalizeCategoryElements(category, elements);
     counts[category.id] = normalized.length;
+    qaByCategory[category.id] = qa;
     amenities.push(...normalized);
     console.log(
-      `[info] ${category.id}: fetched ${elements.length} raw elements, kept ${normalized.length} normalized points`,
+      `[info] ${category.id}: raw=${elements.length}, kept=${normalized.length}, dropped_name_distance_dup=${qa.dropped.duplicate_name_distance}, dropped_low_signal=${qa.dropped.low_signal_name}, dropped_construction=${qa.dropped.construction_or_proposed}`,
     );
     await sleep(REQUEST_GAP_MS);
   }
 
   const sortedAmenities = sortAmenities(amenities);
+  const qaTotals = {
+    raw_elements: Object.values(rawCounts).reduce((sum, value) => sum + value, 0),
+    kept_final: sortedAmenities.length,
+    dropped: {
+      construction_or_proposed: 0,
+      category_filter: 0,
+      missing_name: 0,
+      low_signal_name: 0,
+      missing_coordinate: 0,
+      invalid_source: 0,
+      duplicate_source_id: 0,
+      duplicate_name_distance: 0,
+    },
+  };
+  for (const qa of Object.values(qaByCategory)) {
+    for (const [reason, value] of Object.entries(qa.dropped)) {
+      qaTotals.dropped[reason] += value;
+    }
+  }
+
   const dataset = {
     schema_version: 1,
     source: "OpenStreetMap via Overpass API",
     generated_at: generatedAt,
     overpass_url: options.overpassUrl,
     categories: categoriesMeta,
+    qa: {
+      raw_counts: rawCounts,
+      totals: qaTotals,
+      by_category: qaByCategory,
+    },
     counts,
     total: sortedAmenities.length,
     amenities: sortedAmenities,
