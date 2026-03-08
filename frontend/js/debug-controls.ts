@@ -1,3 +1,4 @@
+import { DISABLE_3D_OPTIMIZATIONS } from "./constants";
 import { clamp, parseNumber } from "./utils";
 import type { Cesium3DTileset, Viewer } from "cesium";
 import type { DebugControlId, DebugState, UiElements } from "./types";
@@ -73,22 +74,40 @@ export function applyDebugSettingsToTileset(
   if (!targetTileset) {
     return;
   }
+  const effectiveDebugState: DebugState = DISABLE_3D_OPTIMIZATIONS
+    ? {
+        ...debugState,
+        dynamicScreenSpaceError: false,
+        maximumScreenSpaceError: 1,
+        skipLevelOfDetail: false,
+        cullWithChildrenBounds: false,
+        cullRequestsWhileMoving: false,
+        cullRequestsWhileMovingMultiplier: 1,
+        loadSiblings: true,
+        foveatedScreenSpaceError: false,
+      }
+    : debugState;
   const tilesetWithInternalCulling = targetTileset as Cesium3DTileset & {
     cullWithChildrenBounds?: boolean;
+    immediatelyLoadDesiredLevelOfDetail?: boolean;
+    preferLeaves?: boolean;
   };
-  targetTileset.dynamicScreenSpaceError = debugState.dynamicScreenSpaceError;
-  targetTileset.maximumScreenSpaceError = debugState.maximumScreenSpaceError;
-  targetTileset.skipLevelOfDetail = debugState.skipLevelOfDetail;
-  targetTileset.baseScreenSpaceError = 1024;
-  targetTileset.skipScreenSpaceErrorFactor = 16;
-  targetTileset.skipLevels = 1;
-  tilesetWithInternalCulling.cullWithChildrenBounds = debugState.cullWithChildrenBounds;
-  targetTileset.cullRequestsWhileMoving = debugState.cullRequestsWhileMoving;
-  targetTileset.cullRequestsWhileMovingMultiplier = debugState.cullRequestsWhileMovingMultiplier;
-  targetTileset.foveatedScreenSpaceError = debugState.foveatedScreenSpaceError;
-  targetTileset.loadSiblings = debugState.loadSiblings;
-  targetTileset.preloadWhenHidden = false;
-  targetTileset.preloadFlightDestinations = false;
+  targetTileset.dynamicScreenSpaceError = effectiveDebugState.dynamicScreenSpaceError;
+  targetTileset.maximumScreenSpaceError = effectiveDebugState.maximumScreenSpaceError;
+  targetTileset.skipLevelOfDetail = effectiveDebugState.skipLevelOfDetail;
+  targetTileset.baseScreenSpaceError = effectiveDebugState.skipLevelOfDetail ? 1024 : 0;
+  targetTileset.skipScreenSpaceErrorFactor = effectiveDebugState.skipLevelOfDetail ? 16 : 1;
+  targetTileset.skipLevels = effectiveDebugState.skipLevelOfDetail ? 1 : 0;
+  tilesetWithInternalCulling.cullWithChildrenBounds = effectiveDebugState.cullWithChildrenBounds;
+  targetTileset.cullRequestsWhileMoving = effectiveDebugState.cullRequestsWhileMoving;
+  targetTileset.cullRequestsWhileMovingMultiplier =
+    effectiveDebugState.cullRequestsWhileMovingMultiplier;
+  targetTileset.foveatedScreenSpaceError = effectiveDebugState.foveatedScreenSpaceError;
+  targetTileset.loadSiblings = effectiveDebugState.loadSiblings;
+  targetTileset.preloadWhenHidden = DISABLE_3D_OPTIMIZATIONS;
+  targetTileset.preloadFlightDestinations = DISABLE_3D_OPTIMIZATIONS;
+  tilesetWithInternalCulling.immediatelyLoadDesiredLevelOfDetail = DISABLE_3D_OPTIMIZATIONS;
+  tilesetWithInternalCulling.preferLeaves = DISABLE_3D_OPTIMIZATIONS;
 }
 
 export function applyDebugSettingsLive({ viewer, tileset, debugState }: DebugLiveApplyArgs): void {

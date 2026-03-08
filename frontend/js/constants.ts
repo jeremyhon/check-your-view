@@ -9,7 +9,8 @@ export const isMobileClient =
     window.matchMedia("(max-width: 960px), (pointer: coarse)").matches) ||
   /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
 export const debugUiEnabled = new URLSearchParams(window.location.search).get("debug") === "1";
-export const defaultMaxSse = isMobileClient ? 64 : 4;
+export const DISABLE_3D_OPTIMIZATIONS = true;
+export const defaultMaxSse = DISABLE_3D_OPTIMIZATIONS ? 1 : isMobileClient ? 64 : 4;
 export const CAMERA_FAR_METERS = 2_000_000;
 export const PANEL_COLLAPSE_STORAGE_KEY = "check-your-view:panel-collapsed";
 
@@ -45,26 +46,38 @@ export const DEFAULTS: ViewState = {
   base_map: "OrthoJPG",
 };
 
-export const DEBUG_DEFAULTS: DebugState = isLocalHost
+export const DEBUG_DEFAULTS: DebugState = DISABLE_3D_OPTIMIZATIONS
   ? {
-      fogEnabled: false,
+      fogEnabled: !isLocalHost,
       dynamicScreenSpaceError: false,
       maximumScreenSpaceError: defaultMaxSse,
-      skipLevelOfDetail: true,
-      cullWithChildrenBounds: true,
+      skipLevelOfDetail: false,
+      cullWithChildrenBounds: false,
       cullRequestsWhileMoving: false,
-      cullRequestsWhileMovingMultiplier: 12,
+      cullRequestsWhileMovingMultiplier: 1,
       loadSiblings: true,
-      foveatedScreenSpaceError: true,
+      foveatedScreenSpaceError: false,
     }
-  : {
-      fogEnabled: true,
-      dynamicScreenSpaceError: true,
-      maximumScreenSpaceError: defaultMaxSse,
-      skipLevelOfDetail: true,
-      cullWithChildrenBounds: true,
-      cullRequestsWhileMoving: true,
-      cullRequestsWhileMovingMultiplier: 12,
-      loadSiblings: false,
-      foveatedScreenSpaceError: true,
-    };
+  : isLocalHost
+    ? {
+        fogEnabled: false,
+        dynamicScreenSpaceError: false,
+        maximumScreenSpaceError: defaultMaxSse,
+        skipLevelOfDetail: true,
+        cullWithChildrenBounds: true,
+        cullRequestsWhileMoving: false,
+        cullRequestsWhileMovingMultiplier: 12,
+        loadSiblings: true,
+        foveatedScreenSpaceError: true,
+      }
+    : {
+        fogEnabled: true,
+        dynamicScreenSpaceError: true,
+        maximumScreenSpaceError: defaultMaxSse,
+        skipLevelOfDetail: true,
+        cullWithChildrenBounds: true,
+        cullRequestsWhileMoving: true,
+        cullRequestsWhileMovingMultiplier: 12,
+        loadSiblings: false,
+        foveatedScreenSpaceError: true,
+      };
