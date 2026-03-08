@@ -7,6 +7,8 @@ import type {
   UiElements,
   ViewState,
 } from "./types";
+import { AMENITY_CATEGORY_CONFIG, AMENITY_CATEGORY_ORDER } from "./amenity-config";
+import { getAmenityToggleMap } from "./amenity-controls";
 import { isMobileClient } from "./constants";
 
 type AmenityLayerOptions = {
@@ -22,63 +24,28 @@ type CategoryRenderConfig = {
   radiusM: number;
   baseLimit: number;
 };
+const CATEGORY_RENDER_CONFIG: Record<AmenityCategoryId, CategoryRenderConfig> =
+  AMENITY_CATEGORY_ORDER.reduce(
+    (accumulator, category) => {
+      const config = AMENITY_CATEGORY_CONFIG[category];
+      accumulator[category] = {
+        label: config.label,
+        color: config.color,
+        radiusM: config.radiusM,
+        baseLimit: config.baseLimit,
+      };
+      return accumulator;
+    },
+    {} as Record<AmenityCategoryId, CategoryRenderConfig>,
+  );
 
-const CATEGORY_ORDER: AmenityCategoryId[] = [
-  "mrt_lrt",
-  "shopping_malls",
-  "primary_schools",
-  "preschools",
-  "supermarkets_wet_markets",
-  "hawker_food_courts",
-];
-
-const CATEGORY_RENDER_CONFIG: Record<AmenityCategoryId, CategoryRenderConfig> = {
-  mrt_lrt: {
-    label: "MRT/LRT",
-    color: "#0b5cab",
-    radiusM: 6500,
-    baseLimit: 28,
+const DEFAULT_CATEGORY_ENABLED: Record<AmenityCategoryId, boolean> = AMENITY_CATEGORY_ORDER.reduce(
+  (accumulator, category) => {
+    accumulator[category] = AMENITY_CATEGORY_CONFIG[category].defaultEnabled;
+    return accumulator;
   },
-  shopping_malls: {
-    label: "Shopping Malls",
-    color: "#0a7a52",
-    radiusM: 5500,
-    baseLimit: 24,
-  },
-  primary_schools: {
-    label: "Primary Schools",
-    color: "#8c2d75",
-    radiusM: 4500,
-    baseLimit: 30,
-  },
-  preschools: {
-    label: "Preschools",
-    color: "#cf5f16",
-    radiusM: 3500,
-    baseLimit: 18,
-  },
-  supermarkets_wet_markets: {
-    label: "Supermarkets / Wet Markets",
-    color: "#5e5ce6",
-    radiusM: 3200,
-    baseLimit: 20,
-  },
-  hawker_food_courts: {
-    label: "Hawker / Food Courts",
-    color: "#aa3a4f",
-    radiusM: 3200,
-    baseLimit: 20,
-  },
-};
-
-const DEFAULT_CATEGORY_ENABLED: Record<AmenityCategoryId, boolean> = {
-  mrt_lrt: true,
-  shopping_malls: true,
-  primary_schools: true,
-  preschools: false,
-  supermarkets_wet_markets: false,
-  hawker_food_courts: false,
-};
+  {} as Record<AmenityCategoryId, boolean>,
+);
 
 const TOGGLE_STORAGE_KEY = "check-your-view:amenity-toggles";
 const STATIC_DATASET_PATH = "/data/amenities/osm-amenities-latest.json";
@@ -110,7 +77,7 @@ function parseDataset(payload: unknown): AmenityPoint[] {
   if (!Array.isArray(data.amenities)) {
     return [];
   }
-  const validCategories = new Set<AmenityCategoryId>(CATEGORY_ORDER);
+  const validCategories = new Set<AmenityCategoryId>(AMENITY_CATEGORY_ORDER);
   return data.amenities.filter((item): item is AmenityPoint => {
     if (!item || typeof item !== "object") {
       return false;
@@ -155,44 +122,33 @@ export function createAmenityLayer({
   let loadAttempted = false;
   let cameraMoveEndCleanup: (() => void) | null = null;
 
-  function toggleMap(): Record<AmenityCategoryId, HTMLInputElement> {
-    return {
-      mrt_lrt: ui.amenityToggleMrtLrt,
-      shopping_malls: ui.amenityToggleShoppingMalls,
-      primary_schools: ui.amenityTogglePrimarySchools,
-      preschools: ui.amenityTogglePreschools,
-      supermarkets_wet_markets: ui.amenityToggleSupermarketsWetMarkets,
-      hawker_food_courts: ui.amenityToggleHawkerFoodCourts,
-    };
-  }
-
   function loadTogglePreferences(): void {
-    const toggles = toggleMap();
+    const toggles = getAmenityToggleMap(ui);
     const defaults = { ...DEFAULT_CATEGORY_ENABLED };
     try {
       const raw = localStorage.getItem(TOGGLE_STORAGE_KEY);
       if (!raw) {
-        for (const category of CATEGORY_ORDER) {
+        for (const category of AMENITY_CATEGORY_ORDER) {
           toggles[category].checked = defaults[category];
         }
         return;
       }
       const parsed = JSON.parse(raw) as Partial<Record<AmenityCategoryId, boolean>>;
-      for (const category of CATEGORY_ORDER) {
+      for (const category of AMENITY_CATEGORY_ORDER) {
         const value = parsed[category];
         toggles[category].checked = typeof value === "boolean" ? value : defaults[category];
       }
     } catch {
-      for (const category of CATEGORY_ORDER) {
+      for (const category of AMENITY_CATEGORY_ORDER) {
         toggles[category].checked = defaults[category];
       }
     }
   }
 
   function persistTogglePreferences(): void {
-    const toggles = toggleMap();
+    const toggles = getAmenityToggleMap(ui);
     const payload: Partial<Record<AmenityCategoryId, boolean>> = {};
-    for (const category of CATEGORY_ORDER) {
+    for (const category of AMENITY_CATEGORY_ORDER) {
       payload[category] = toggles[category].checked;
     }
     try {
@@ -203,8 +159,8 @@ export function createAmenityLayer({
   }
 
   function enabledCategories(): AmenityCategoryId[] {
-    const toggles = toggleMap();
-    return CATEGORY_ORDER.filter((category) => toggles[category].checked);
+    const toggles = getAmenityToggleMap(ui);
+    return AMENITY_CATEGORY_ORDER.filter((category) => toggles[category].checked);
   }
 
   async function fetchDataset(): Promise<AmenityPoint[]> {
@@ -321,8 +277,8 @@ export function createAmenityLayer({
 
   function bindToggleControls(): void {
     loadTogglePreferences();
-    const toggles = toggleMap();
-    for (const category of CATEGORY_ORDER) {
+    const toggles = getAmenityToggleMap(ui);
+    for (const category of AMENITY_CATEGORY_ORDER) {
       toggles[category].addEventListener("change", () => {
         persistTogglePreferences();
         refresh();
@@ -350,7 +306,7 @@ export function createAmenityLayer({
       setStatus("Amenity labels unavailable: dataset endpoint returned no data.", true);
       return;
     }
-    for (const category of CATEGORY_ORDER) {
+    for (const category of AMENITY_CATEGORY_ORDER) {
       amenitiesByCategory.set(
         category,
         points.filter((point) => point.category === category),
@@ -365,5 +321,14 @@ export function createAmenityLayer({
     bindToggleControls,
     initialize,
     refresh,
+    dispose: () => {
+      if (cameraMoveEndCleanup) {
+        cameraMoveEndCleanup();
+        cameraMoveEndCleanup = null;
+      }
+      if (viewer.dataSources.contains(dataSource)) {
+        viewer.dataSources.remove(dataSource, true);
+      }
+    },
   };
 }

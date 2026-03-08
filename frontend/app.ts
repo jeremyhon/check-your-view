@@ -27,6 +27,7 @@ import { createLocationController } from "./js/location-controls";
 import { createPanelController, setMiniMapInstructionText } from "./js/panel-controls";
 import { createCompassOverlay } from "./js/compass-overlay";
 import { createAmenityLayer } from "./js/amenity-layer";
+import { syncAmenityToggleLabels } from "./js/amenity-controls";
 import {
   floorLevelFromHeight,
   heightFromFloor,
@@ -492,6 +493,7 @@ function setupUiControllers(): void {
 }
 
 function setupInitialUiState(): void {
+  syncAmenityToggleLabels(ui);
   ui.qualityPreset.value = defaultQualityPreset;
   applyQualityPresetFromInput();
   panelController.initializePanelCollapsedState();

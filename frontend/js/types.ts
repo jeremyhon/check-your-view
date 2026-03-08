@@ -150,6 +150,7 @@ export interface AmenityLayerController {
   bindToggleControls(): void;
   initialize(): Promise<void>;
   refresh(): void;
+  dispose(): void;
 }
 
 export interface SceneDataController {
