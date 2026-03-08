@@ -16,8 +16,8 @@ type DebugControlsBindOptions = {
   onChange?: (controlId: DebugControlId) => void;
 };
 
-const DIAGNOSTIC_CACHE_BYTES = 768 * 1024 * 1024;
-const DIAGNOSTIC_OVERFLOW_BYTES = 768 * 1024 * 1024;
+const DIAGNOSTIC_CACHE_BYTES = 1280 * 1024 * 1024;
+const DIAGNOSTIC_OVERFLOW_BYTES = 1280 * 1024 * 1024;
 
 export function setDebugPanelVisibility(ui: UiElements, enabled: boolean): void {
   if (!ui.debugPanel) {
@@ -112,10 +112,10 @@ export function applyDebugSettingsToTileset(
     targetTileset.maximumCacheOverflowBytes,
     DIAGNOSTIC_OVERFLOW_BYTES,
   );
-  targetTileset.preloadWhenHidden = DISABLE_3D_OPTIMIZATIONS;
-  targetTileset.preloadFlightDestinations = DISABLE_3D_OPTIMIZATIONS;
-  tilesetWithInternalCulling.immediatelyLoadDesiredLevelOfDetail = DISABLE_3D_OPTIMIZATIONS;
-  tilesetWithInternalCulling.preferLeaves = DISABLE_3D_OPTIMIZATIONS;
+  targetTileset.preloadWhenHidden = false;
+  targetTileset.preloadFlightDestinations = false;
+  tilesetWithInternalCulling.immediatelyLoadDesiredLevelOfDetail = false;
+  tilesetWithInternalCulling.preferLeaves = false;
 }
 
 export function applyDebugSettingsLive({ viewer, tileset, debugState }: DebugLiveApplyArgs): void {
