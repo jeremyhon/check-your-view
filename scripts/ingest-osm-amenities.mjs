@@ -5,7 +5,8 @@ import path from "node:path";
 import process from "node:process";
 
 const DEFAULT_OVERPASS_URL = process.env.OVERPASS_URL || "https://overpass-api.de/api/interpreter";
-const DEFAULT_OUT_PATH = process.env.AMENITIES_OUT || "data/amenities/osm-amenities-latest.json";
+const DEFAULT_OUT_PATH =
+  process.env.AMENITIES_OUT || "frontend/data/amenities/osm-amenities-latest.json";
 const MAX_RETRIES = 5;
 const REQUEST_TIMEOUT_MS = 120_000;
 const REQUEST_GAP_MS = 600;

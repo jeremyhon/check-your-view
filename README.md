@@ -87,6 +87,7 @@ Configured in `worker/wrangler.toml`:
 - `ONEMAP_BASE_URL` (default `https://www.onemap.gov.sg`)
 - `ONEMAP_REFERER` (default `https://www.onemap.gov.sg/3d`)
 - `ALLOWED_ORIGINS` (comma-separated or `*`)
+- `AMENITIES_DATA_URL` (URL to generated OSM amenities JSON used by `/api/amenities`)
 - `ONEMAP_API_TOKEN` (secret; set with Wrangler)
 
 Set production secret:
@@ -112,6 +113,9 @@ window.CHECK_YOUR_VIEW_CONFIG = {
 ```
 
 For local dev it defaults to `http://localhost:8787`.
+
+Amenity labels load from Worker endpoint `/api/amenities` first, then fall back to static
+file `/data/amenities/osm-amenities-latest.json` on the frontend host.
 
 ## TypeScript Tooling
 
@@ -169,6 +173,7 @@ The script validates:
 - Worker tileset endpoint
 - Worker imagery tile endpoint
 - Worker search endpoint
+- Worker amenities endpoint
 
 Optional overrides:
 
@@ -197,7 +202,7 @@ pnpm run amenities:ingest
 
 Default output path:
 
-- `data/amenities/osm-amenities-latest.json`
+- `frontend/data/amenities/osm-amenities-latest.json`
 
 Optional flags:
 
