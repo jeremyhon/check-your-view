@@ -4,6 +4,7 @@ import type { ViewState } from "./types";
 type UrlSyncControllerOptions = {
   state: ViewState;
   throttleMs?: number;
+  debounceMs?: number;
   preservedQueryKeys?: string[];
 };
 
@@ -11,17 +12,35 @@ export type UrlSyncController = {
   buildShareUrl: () => string;
   syncNow: () => void;
   syncThrottled: () => void;
+  syncDebounced: () => void;
   dispose: () => void;
 };
 
 const DEFAULT_THROTTLE_MS = 100;
+const DEFAULT_DEBOUNCE_MS = 180;
 
 export function createUrlSyncController({
   state,
   throttleMs = DEFAULT_THROTTLE_MS,
+  debounceMs = DEFAULT_DEBOUNCE_MS,
   preservedQueryKeys = ["debug"],
 }: UrlSyncControllerOptions): UrlSyncController {
-  let syncTimerId: number | null = null;
+  let throttledSyncTimerId: number | null = null;
+  let debouncedSyncTimerId: number | null = null;
+
+  function clearThrottledTimer(): void {
+    if (throttledSyncTimerId !== null) {
+      window.clearTimeout(throttledSyncTimerId);
+      throttledSyncTimerId = null;
+    }
+  }
+
+  function clearDebouncedTimer(): void {
+    if (debouncedSyncTimerId !== null) {
+      window.clearTimeout(debouncedSyncTimerId);
+      debouncedSyncTimerId = null;
+    }
+  }
 
   function buildShareUrl(): string {
     const nextUrl = new URL(buildShareUrlFromState(state, window.location));
@@ -36,34 +55,39 @@ export function createUrlSyncController({
   }
 
   function syncNow(): void {
-    if (syncTimerId !== null) {
-      window.clearTimeout(syncTimerId);
-      syncTimerId = null;
-    }
+    clearThrottledTimer();
+    clearDebouncedTimer();
     window.history.replaceState({}, "", buildShareUrl());
   }
 
   function syncThrottled(): void {
-    if (syncTimerId !== null) {
+    if (throttledSyncTimerId !== null) {
       return;
     }
-    syncTimerId = window.setTimeout(() => {
-      syncTimerId = null;
+    throttledSyncTimerId = window.setTimeout(() => {
+      throttledSyncTimerId = null;
       window.history.replaceState({}, "", buildShareUrl());
     }, throttleMs);
   }
 
+  function syncDebounced(): void {
+    clearDebouncedTimer();
+    debouncedSyncTimerId = window.setTimeout(() => {
+      debouncedSyncTimerId = null;
+      window.history.replaceState({}, "", buildShareUrl());
+    }, debounceMs);
+  }
+
   function dispose(): void {
-    if (syncTimerId !== null) {
-      window.clearTimeout(syncTimerId);
-      syncTimerId = null;
-    }
+    clearThrottledTimer();
+    clearDebouncedTimer();
   }
 
   return {
     buildShareUrl,
     syncNow,
     syncThrottled,
+    syncDebounced,
     dispose,
   };
 }

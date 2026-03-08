@@ -38,6 +38,7 @@ import { createCameraController } from "./js/camera-controls";
 import { createSceneDataController } from "./js/scene-data";
 import { createTileDiagnosticsController } from "./js/tile-diagnostics";
 import { createUrlSyncController } from "./js/url-sync";
+import { bindDpadControls } from "./js/dpad-controls";
 import type { Cesium3DTileset, Viewer } from "cesium";
 import type {
   CameraController,
@@ -53,6 +54,7 @@ import type {
   UiElements,
   ViewState,
 } from "./js/types";
+import type { DpadControlsController } from "./js/dpad-controls";
 import type { TileDiagnosticsController } from "./js/tile-diagnostics";
 import type { UrlSyncController } from "./js/url-sync";
 
@@ -64,6 +66,9 @@ const SINGAPORE_RECTANGLE = Cesium.Rectangle.fromDegrees(
 );
 const INSIDE_BUILDING_HEADROOM_METERS = 2;
 const INDOOR_VISIBILITY_RETRY_DELAY_MS = 900;
+const D_PAD_STEP_METERS = 1;
+const D_PAD_HOLD_REPEAT_MS = 120;
+const D_PAD_URL_SYNC_DEBOUNCE_MS = 180;
 
 const state: ViewState = { ...DEFAULTS };
 const debugState: DebugState = { ...DEBUG_DEFAULTS };
@@ -79,6 +84,7 @@ let compassOverlayController!: CompassOverlayController;
 let amenityLayerController: AmenityLayerController | null = null;
 let tileDiagnosticsController!: TileDiagnosticsController;
 let urlSyncController!: UrlSyncController;
+let dpadControlsController: DpadControlsController | null = null;
 let indoorVisibilityRetryTimerId: number | null = null;
 
 function requireElement<T extends HTMLElement>(id: string): T {
@@ -92,6 +98,10 @@ function requireElement<T extends HTMLElement>(id: string): T {
 const ui: UiElements = {
   compassTrack: requireElement("compassTrack"),
   compassReadout: requireElement("compassReadout"),
+  dpadForwardBtn: requireElement("dpadForwardBtn"),
+  dpadLeftBtn: requireElement("dpadLeftBtn"),
+  dpadRightBtn: requireElement("dpadRightBtn"),
+  dpadBackwardBtn: requireElement("dpadBackwardBtn"),
   zoomResetBtn: requireElement("zoomResetBtn"),
   indoorStatusBadge: requireElement("indoorStatusBadge"),
   tileDiagnostics: requireElement("tileDiagnostics"),
@@ -132,9 +142,13 @@ const ui: UiElements = {
   status: requireElement("status"),
 };
 
+function syncPositionInputsFromState() {
+  ui.lat.value = state.lat.toFixed(6);
+  ui.lng.value = state.lng.toFixed(6);
+}
+
 function syncInputsFromState() {
-  ui.lat.value = String(state.lat);
-  ui.lng.value = String(state.lng);
+  syncPositionInputsFromState();
   ui.floorLevel.value = state.floor_level.toFixed(2);
   ui.floorHeightM.value = state.floor_height_m.toFixed(2);
   ui.heightM.value = String(state.height_m);
@@ -293,6 +307,15 @@ function handleLocationChanged(): void {
   urlSyncController.syncNow();
 }
 
+function handleDpadMove(forwardMeters: number, rightMeters: number): void {
+  if (!viewer) {
+    return;
+  }
+  cameraController.moveRelativeMeters(forwardMeters, rightMeters);
+  syncPositionInputsFromState();
+  locationController.syncMiniMapFromState();
+}
+
 async function initializeViewer() {
   Cesium.Ion.defaultAccessToken = "";
   viewer = new Cesium.Viewer("viewerContainer", {
@@ -350,7 +373,7 @@ async function initializeViewer() {
     cameraFarMeters: CAMERA_FAR_METERS,
     initialZoomPercent: state.zoom_pct,
     onPoseChanged: () => {
-      urlSyncController.syncNow();
+      urlSyncController.syncDebounced();
     },
     onOrientationInputUpdate: updateInputAngles,
     onZoomPercentChanged: (zoomPercent: number) => {
@@ -444,6 +467,22 @@ function bindUi() {
     }
     cameraController.resetZoom();
   });
+  if (dpadControlsController) {
+    dpadControlsController.dispose();
+  }
+  dpadControlsController = bindDpadControls({
+    bindings: [
+      { button: ui.dpadForwardBtn, forwardMeters: D_PAD_STEP_METERS, rightMeters: 0 },
+      { button: ui.dpadBackwardBtn, forwardMeters: -D_PAD_STEP_METERS, rightMeters: 0 },
+      { button: ui.dpadLeftBtn, forwardMeters: 0, rightMeters: -D_PAD_STEP_METERS },
+      { button: ui.dpadRightBtn, forwardMeters: 0, rightMeters: D_PAD_STEP_METERS },
+    ],
+    repeatIntervalMs: D_PAD_HOLD_REPEAT_MS,
+    onMove: handleDpadMove,
+    onStop: () => {
+      urlSyncController.syncNow();
+    },
+  });
   ui.floorLevel.addEventListener("change", () => {
     syncHeightFromFloorInputs();
   });
@@ -469,15 +508,22 @@ function bindUi() {
   });
 }
 
-async function bootstrap() {
+function initializeStateFromQuery(): void {
   Object.assign(state, parseStateFromQuery(window.location.search, DEFAULTS, SG_LIMITS));
-  urlSyncController = createUrlSyncController({ state });
+}
+
+function setupCoreControllers(): void {
+  urlSyncController = createUrlSyncController({
+    state,
+    debounceMs: D_PAD_URL_SYNC_DEBOUNCE_MS,
+  });
   tileDiagnosticsController = createTileDiagnosticsController({
     ui,
     enabled: debugUiEnabled,
   });
-  ui.qualityPreset.value = defaultQualityPreset;
-  applyQualityPresetFromInput();
+}
+
+function setupUiControllers(): void {
   setMiniMapInstructionText(ui, isMobileClient);
   locationController = createLocationController({
     ui,
@@ -500,13 +546,25 @@ async function bootstrap() {
       }
     },
   });
-  panelController.initializePanelCollapsedState();
-  setDebugPanelVisibility(ui, debugUiEnabled);
   compassOverlayController = createCompassOverlay({
     track: ui.compassTrack,
     readout: ui.compassReadout,
   });
+}
+
+function setupInitialUiState(): void {
+  ui.qualityPreset.value = defaultQualityPreset;
+  applyQualityPresetFromInput();
+  panelController.initializePanelCollapsedState();
+  setDebugPanelVisibility(ui, debugUiEnabled);
   syncInputsFromState();
+}
+
+async function bootstrap() {
+  initializeStateFromQuery();
+  setupCoreControllers();
+  setupUiControllers();
+  setupInitialUiState();
   bindUi();
   try {
     await initializeViewer();

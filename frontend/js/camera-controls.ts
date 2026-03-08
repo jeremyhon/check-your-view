@@ -87,6 +87,33 @@ export function createCameraController({
     setZoomPercent(MIN_ZOOM_PERCENT);
   }
 
+  function moveRelativeMeters(forwardMeters: number, rightMeters: number): void {
+    if (forwardMeters === 0 && rightMeters === 0) {
+      return;
+    }
+    const headingRad = Cesium.Math.toRadians(state.heading_deg);
+    const eastMeters = Math.sin(headingRad) * forwardMeters + Math.cos(headingRad) * rightMeters;
+    const northMeters = Math.cos(headingRad) * forwardMeters - Math.sin(headingRad) * rightMeters;
+    const currentCartesian = Cesium.Cartesian3.fromDegrees(state.lng, state.lat, state.height_m);
+    const enuFrame = Cesium.Transforms.eastNorthUpToFixedFrame(currentCartesian);
+    const localOffset = new Cesium.Cartesian3(eastMeters, northMeters, 0);
+    const movedCartesian = Cesium.Matrix4.multiplyByPoint(
+      enuFrame,
+      localOffset,
+      new Cesium.Cartesian3(),
+    );
+    const movedCartographic = Cesium.Cartographic.fromCartesian(movedCartesian);
+    if (!movedCartographic) {
+      return;
+    }
+    state.lat = Cesium.Math.toDegrees(movedCartographic.latitude);
+    state.lng = Cesium.Math.toDegrees(movedCartographic.longitude);
+    applyFixedPose();
+    if (typeof onPoseChanged === "function") {
+      onPoseChanged();
+    }
+  }
+
   function updateOrientationInputsOnly(): void {
     if (typeof onOrientationInputUpdate === "function") {
       onOrientationInputUpdate();
@@ -246,6 +273,7 @@ export function createCameraController({
     installOrientationDrag,
     installZoomControls,
     lockPositionControls,
+    moveRelativeMeters,
     resetZoom,
   };
 }

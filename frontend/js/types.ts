@@ -78,6 +78,10 @@ export interface AmenityDataset {
 export interface UiElements {
   compassTrack: HTMLElement;
   compassReadout: HTMLElement;
+  dpadForwardBtn: HTMLButtonElement;
+  dpadLeftBtn: HTMLButtonElement;
+  dpadRightBtn: HTMLButtonElement;
+  dpadBackwardBtn: HTMLButtonElement;
   zoomResetBtn: HTMLButtonElement;
   indoorStatusBadge: HTMLElement;
   tileDiagnostics: HTMLElement;
@@ -139,6 +143,7 @@ export interface CameraController {
   installOrientationDrag(): void;
   lockPositionControls(): void;
   installZoomControls(): void;
+  moveRelativeMeters(forwardMeters: number, rightMeters: number): void;
   resetZoom(): void;
 }
 
